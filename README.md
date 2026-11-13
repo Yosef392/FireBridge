@@ -67,6 +67,18 @@ The client then calls these endpoints (response shapes are defined in `src/lib/t
 
 `FireDetection` uses FIRMS column names (`latitude`, `longitude`, `acq_date`, `acq_time`, `frp`, `brightness`, `confidence`, `daynight`) plus `source`, `satellite`, `regionId`, `risk`. When the trained model is ready, return `model.status: "trained"` and real `metrics` — the Predictions page switches its banner and fills the Precision / Recall / F1 / ROC-AUC cards automatically. Enable CORS for the front-end origin in FastAPI.
 
+## Data and model (notebooks)
+
+The harmonization pipeline lives in [`notebooks/`](notebooks/) and runs on Google Colab:
+
+| Notebook | What it does |
+|---|---|
+| [`1_Downloading.ipynb`](notebooks/1_Downloading.ipynb) | Downloads NASA FIRMS MODIS + VIIRS for the 9 study regions to Drive as Parquet |
+| [`2_Preprocessing.ipynb`](notebooks/2_Preprocessing.ipynb) | Profiling, EDA plots, cleaning (vegetation fires only) |
+| [`3_Prediction.ipynb`](notebooks/3_Prediction.ipynb) | Per-detection MODIS → VIIRS baseline: matching, 7 models, chronological test |
+
+Team plan: [`docs/project-plan.md`](docs/project-plan.md) · Baseline write-up: [`docs/naive-baseline.md`](docs/naive-baseline.md)
+
 ## Notes
 
 - Demo detections are generated deterministically (seeded PRNG) for 2020–2024 across 8 regions, with realistic seasonality, sensor mix and FRP distributions, and land-masked so points never fall at sea.
