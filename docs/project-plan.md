@@ -136,9 +136,31 @@ Executed notebooks are kept as a record in [`notebooks/colab_runs/2026-11-14/`](
 
 **Caveats, to fix in the rerun:**
 
-- This run used the **older notebook 4** (before the region-name fix and `report.json`), so the region features were all zero and the app has no test scores yet.
+- *Fixed in the rerun below.* This run used the **older notebook 4** (before the region-name fix and `report.json`), so the region features were all zero and the app has no test scores yet.
 - It also trained on **whole countries** (Australia, Brazil, Egypt, Greece, Turkey) that contain the study regions. That double-counts fires and leaks each held-out region into leave-one-region-out, so the LORO numbers from this run (e.g. Delta −59%, Portugal +45%) aren't trustworthy. Notebook 4 now uses only the study regions by default.
 - On totals for large regions the ratio baseline is as good as the main model; the main model's advantage is per cell and per month, which is what the map and calendar show.
+
+### Rerun with the fixed notebook 4, study regions only (14 Nov)
+
+This is the run now in the app (`public/data/model.json`).
+
+**Test 2022–2024, all regions:**
+
+| Model | Cell deviance | Total bias | Monthly WAPE | Monthly corr |
+| --- | --- | --- | --- | --- |
+| Average ratio (per region) | 6.27 | +4.3% | 13.6% | 0.991 |
+| Gradient boosting (Poisson) | 1.29 | +1.0% | 9.6% | 0.994 |
+| Ratio × learned correction (main) | 1.29 | +2.7% | 10.7% | 0.993 |
+
+With the region features working, both learned models now beat the ratio on every metric. Plain Poisson GBM and the main model are close; we keep the main model because it follows the ratio when data is thin.
+
+**By region (main):** total bias NSW +1.8%, Pantanal −1.3%, Canada +6.9%, Delta +8.5%, Guinea −2.3%, Indonesia +14.1%, Portugal −6.2%. Monthly WAPE is 6–21%, except Portugal at 37% (few fires per month, so small errors are large in percent).
+
+**2012 jump, harmonized:** NSW 1.17× (real 1.08×), Pantanal 0.49× (0.52×), Canada 34.2× (31.1×), Delta 1.13× (1.20×), Guinea 0.98× (0.98×), Indonesia 2.00× (1.78×), Portugal 0.75× (0.75×).
+
+**Leave-one-region-out (main, total bias):** NSW −10%, Pantanal +22%, Canada −27%, Delta −54%, Guinea +19%, Indonesia +1%, Portugal +76%. A brand-new region with a very different fire type (small Delta straw fires, Portugal forest fires) is still poorly predicted. The model needs some VIIRS-era data from a region to calibrate it. That's an honest limitation to state in the presentation.
+
+**Known events:** NSW Nov & Dec 2019 (z 27.0, 18.5), Pantanal 2020 (Mar, Jul–Sep), Canada Sep & May 2023 (z 34.6, 13.9), Portugal 2017 all rank at the top. Indonesia's 2015 peat fires don't top the list, because Sep–Oct is also high in other El Niño years (2006, 2019), which spreads the baseline. The Delta and Guinea have steady seasonal cycles with no single spike, as expected.
 
 ## Validation: do the known fire events show up?
 
