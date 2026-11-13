@@ -7,6 +7,7 @@ import { Logo } from "./logo";
 import { DASHBOARD_NAV } from "./nav";
 import { IS_DEMO } from "@/lib/api/config";
 import { cn } from "@/lib/utils";
+import { useIsRealDataPage } from "./data-source";
 
 function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
@@ -41,6 +42,8 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
 }
 
 function SidebarFooter() {
+  const real = useIsRealDataPage();
+  const demo = IS_DEMO && !real;
   return (
     <div className="space-y-3">
       <div className="rounded-xl border border-border bg-surface/70 p-3">
@@ -49,13 +52,15 @@ function SidebarFooter() {
           Data pipeline
         </div>
         <p className="mt-1.5 text-[11px] leading-relaxed text-muted">
-          {IS_DEMO
+          {real
+            ? "This page shows our harmonized NASA FIRMS results, exported from the Colab notebooks."
+            : IS_DEMO
             ? "Running on an illustrative demo archive shaped like NASA FIRMS MODIS / VIIRS records."
             : "Connected to the FireBridge analysis API."}
         </p>
         <div className="mt-2 flex items-center gap-1.5 text-[11px]">
-          <span className={cn("size-1.5 rounded-full", IS_DEMO ? "bg-fire-soft" : "bg-success")} aria-hidden />
-          <span className="text-muted">{IS_DEMO ? "Demo mode" : "API mode"}</span>
+          <span className={cn("size-1.5 rounded-full", demo ? "bg-fire-soft" : "bg-success")} aria-hidden />
+          <span className="text-muted">{real ? "Real data" : IS_DEMO ? "Demo mode" : "API mode"}</span>
         </div>
       </div>
       <Link href="/" className="flex items-center gap-2 px-3 text-xs text-muted transition-colors hover:text-foreground">

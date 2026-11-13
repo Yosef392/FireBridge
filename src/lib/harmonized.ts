@@ -108,8 +108,14 @@ async function getStatic<T>(path: string, signal?: AbortSignal): Promise<T> {
 }
 
 export const fetchHarmonizedRegions = (signal?: AbortSignal) => getStatic<HarmonizedRegion[]>("regions.json", signal);
+/** The FIRMS MODIS archive starts in November 2000; earlier months have no observations to harmonize. */
+export const MODIS_ARCHIVE_START = "2000-11";
+
 export const fetchCalendar = (regionId: string, signal?: AbortSignal) =>
-  getStatic<CalendarFile>(`calendar_${regionId}.json`, signal);
+  getStatic<CalendarFile>(`calendar_${regionId}.json`, signal).then((file) => ({
+    ...file,
+    months: file.months.filter((m) => m.month >= MODIS_ARCHIVE_START),
+  }));
 export const fetchModelReport = (signal?: AbortSignal) => getStatic<ModelReport>("model.json", signal);
 
 /* ---------------------------------------------------------------- aggregation */
@@ -156,6 +162,8 @@ export function yearlyRows(months: CalendarMonth[], viirsFrom: number): YearRow[
   }
   const sum = (list: CalendarMonth[], f: (m: CalendarMonth) => number | null) => list.reduce((s, m) => s + (f(m) ?? 0), 0);
   return [...byYear.entries()]
+    // Only whole years: 2000 has just Nov–Dec, which would look like a fake low.
+    .filter(([, list]) => list.length === 12)
     .sort(([a], [b]) => a - b)
     .map(([year, list]) => {
       const hasViirs = list.some((m) => m.viirs != null);

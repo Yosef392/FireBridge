@@ -9,11 +9,14 @@ import { REGIONS } from "@/data/demo/regions";
 import { IS_DEMO } from "@/lib/api/config";
 import type { DatePreset, SourceFilter } from "@/lib/types";
 import { LogoMark } from "./logo";
+import { useIsRealDataPage } from "./data-source";
 
 const CONTINENTS = [...new Set(REGIONS.map((r) => r.continent))];
 
 export function Topbar({ onMenu }: { onMenu: () => void }) {
   const { filters, setFilter, reset } = useFilters();
+  const real = useIsRealDataPage();
+  const demo = IS_DEMO && !real;
   const range = resolveRange(filters.preset);
   const dirty =
     filters.preset !== DEFAULT_FILTERS.preset || filters.regionId !== DEFAULT_FILTERS.regionId || filters.source !== DEFAULT_FILTERS.source;
@@ -26,6 +29,9 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
         </button>
         <LogoMark className="size-7 lg:hidden" />
 
+        {real ? (
+          <p className="text-xs text-muted">NASA FIRMS MODIS + VIIRS · 7 study regions · 2000–2024</p>
+        ) : (
         <div className="order-last grid w-full grid-cols-1 gap-2 sm:grid-cols-3 lg:order-none lg:flex lg:w-auto lg:flex-1 lg:items-center">
           <label className="relative block lg:w-56">
             <span className="sr-only">Date range</span>
@@ -97,20 +103,23 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
             </button>
           )}
         </div>
+        )}
 
         <div className="ml-auto flex items-center gap-3">
+          {!real && (
           <div className="hidden text-right xl:block">
             <p className="font-mono text-[10px] uppercase tracking-[0.16em] text-subtle">Window</p>
             <p className="text-xs tabular-nums text-muted">{formatRange(range)}</p>
           </div>
+          )}
           <div className="flex items-center gap-2 rounded-lg border border-border bg-surface/70 px-2.5 py-1.5">
             <span className="relative flex size-2">
-              <span className={`absolute inline-flex size-full rounded-full ${IS_DEMO ? "bg-fire-soft" : "bg-success"} animate-pulse-ring`} />
-              <span className={`relative inline-flex size-2 rounded-full ${IS_DEMO ? "bg-fire-soft" : "bg-success"}`} />
+              <span className={`absolute inline-flex size-full rounded-full ${demo ? "bg-fire-soft" : "bg-success"} animate-pulse-ring`} />
+              <span className={`relative inline-flex size-2 rounded-full ${demo ? "bg-fire-soft" : "bg-success"}`} />
             </span>
             <span className="hidden text-[11px] text-muted sm:inline">Source:</span>
-            <span className="text-[11px] font-medium">{IS_DEMO ? "Illustrative archive" : "FastAPI backend"}</span>
-            {IS_DEMO && <DemoBadge className="hidden sm:inline-flex" />}
+            <span className="text-[11px] font-medium">{real ? "NASA FIRMS (exported results)" : IS_DEMO ? "Illustrative archive" : "FastAPI backend"}</span>
+            {demo && <DemoBadge className="hidden sm:inline-flex" />}
           </div>
         </div>
       </div>

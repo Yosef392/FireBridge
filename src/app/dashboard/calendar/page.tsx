@@ -137,7 +137,7 @@ export default function CalendarPage() {
 
       <ChartCard
         demo={false}
-        title="Monthly fire detections, 2000–2024"
+        title="Monthly fire detections, Nov 2000–2024"
         description={METRIC_HELP[metric]}
         actions={<Segmented ariaLabel="Calendar metric" value={metric} onChange={setMetric} options={METRICS} />}
       >
@@ -183,7 +183,7 @@ export default function CalendarPage() {
           title="How accurate is it?"
           description={
             report.data
-              ? `Trained on ${viirsFrom}–${Math.max(report.data.split.train_until, ...report.data.split.val_years)}, tested once on ${report.data.split.test_from}–${report.data.years[1]} (years never seen in training).`
+              ? `Trained on ${viirsFrom}–${report.data.split.train_until}, tuned on ${report.data.split.val_years.join(", ")}, tested once on ${report.data.split.test_from}–${report.data.years[1]} (years never seen in training).`
               : undefined
           }
         >
