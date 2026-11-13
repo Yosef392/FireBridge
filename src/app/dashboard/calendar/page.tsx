@@ -189,6 +189,10 @@ export default function CalendarPage() {
         >
           {!report.data ? (
             <ChartSkeleton height={180} />
+          ) : report.data.test_overall.length === 0 ? (
+            <p className="text-xs text-muted">
+              Test scores aren&apos;t in this export yet. Re-run the latest notebook 4 (it saves report.json), then notebook 5.
+            </p>
           ) : (
             <>
               <ScoreTable rows={report.data.test_overall} />
