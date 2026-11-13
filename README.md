@@ -76,6 +76,7 @@ The harmonization pipeline lives in [`notebooks/`](notebooks/) and runs on Googl
 | [`1_Downloading.ipynb`](notebooks/1_Downloading.ipynb) | Downloads NASA FIRMS MODIS + VIIRS for the 9 study regions to Drive as Parquet |
 | [`2_Preprocessing.ipynb`](notebooks/2_Preprocessing.ipynb) | Profiling, EDA plots, cleaning (vegetation fires only) |
 | [`3_Prediction.ipynb`](notebooks/3_Prediction.ipynb) | Per-detection MODIS → VIIRS baseline: matching, 7 models, chronological test |
+| [`4_Harmonization.ipynb`](notebooks/4_Harmonization.ipynb) | Version 2: VIIRS-equivalent fire counts per 10 km cell × month, 2000–2024, with uncertainty band |
 
 Team plan: [`docs/project-plan.md`](docs/project-plan.md) · Baseline write-up: [`docs/naive-baseline.md`](docs/naive-baseline.md)
 
