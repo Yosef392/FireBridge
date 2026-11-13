@@ -51,7 +51,7 @@ function SidebarFooter() {
         <p className="mt-1.5 text-[11px] leading-relaxed text-muted">
           {IS_DEMO
             ? "Running on an illustrative demo archive shaped like NASA FIRMS MODIS / VIIRS records."
-            : "Connected to the Wildfire Intelligence analysis API."}
+            : "Connected to the FireBridge analysis API."}
         </p>
         <div className="mt-2 flex items-center gap-1.5 text-[11px]">
           <span className={cn("size-1.5 rounded-full", IS_DEMO ? "bg-fire-soft" : "bg-success")} aria-hidden />

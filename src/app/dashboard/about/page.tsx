@@ -45,7 +45,7 @@ export default function AboutPage() {
     <div className="space-y-8">
       <PageHeader
         eyebrow="About & Methodology"
-        title="How Wildfire Intelligence works"
+        title="How FireBridge works"
         description="An end-to-end research prototype: from raw satellite fire detections to an interpretable, region-level outlook for elevated fire activity."
         actions={<DemoBadge label="Prototype · Demo data" />}
       />

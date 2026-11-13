@@ -94,7 +94,7 @@ export default function LandingPage() {
               <span className="text-gradient-fire">Before It Spreads.</span>
             </h1>
             <p className="mt-6 max-w-xl text-base leading-relaxed text-muted md:text-lg">
-              Wildfire Intelligence turns two decades of NASA MODIS and VIIRS satellite fire observations into patterns,
+              FireBridge turns two decades of NASA MODIS and VIIRS satellite fire observations into patterns,
               hotspot analytics and machine-learning risk outlooks — so emerging fire activity can be spotted early,
               region by region.
             </p>
@@ -335,7 +335,7 @@ export default function LandingPage() {
         </div>
         <div className="border-t border-border">
           <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-3 px-4 py-5 text-xs text-subtle sm:flex-row md:px-6">
-            <p>© {new Date().getFullYear()} Wildfire Intelligence · Team name placeholder</p>
+            <p>© {new Date().getFullYear()} FireBridge · Team name placeholder</p>
             <p className="flex items-center gap-4">
               <span className="inline-flex items-center gap-1.5">
                 <Github className="size-3.5" aria-hidden /> Repository link placeholder

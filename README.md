@@ -1,4 +1,4 @@
-# Wildfire Intelligence
+# FireBridge
 
 AI-powered wildfire monitoring, analytics and early-warning prototype — a NASA Space Apps Challenge project built around the structure of NASA FIRMS **MODIS** and **VIIRS** active-fire data.
 

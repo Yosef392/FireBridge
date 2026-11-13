@@ -7,7 +7,7 @@ const display = Space_Grotesk({ subsets: ["latin"], variable: "--font-display-fa
 const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mono-face", display: "swap" });
 
 export const metadata: Metadata = {
-  title: { default: "Wildfire Intelligence — Satellite wildfire analytics & early warning", template: "%s · Wildfire Intelligence" },
+  title: { default: "FireBridge — Satellite wildfire analytics & early warning", template: "%s · FireBridge" },
   description:
     "AI-assisted wildfire monitoring, analytics and early-warning prototype built on the structure of NASA MODIS and VIIRS active-fire data. NASA Space Apps Challenge project.",
 };

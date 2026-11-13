@@ -21,11 +21,11 @@ export function LogoMark({ className }: { className?: string }) {
 
 export function Logo({ href = "/", compact = false }: { href?: string; compact?: boolean }) {
   return (
-    <Link href={href} className="group flex items-center gap-2.5" aria-label="Wildfire Intelligence home">
+    <Link href={href} className="group flex items-center gap-2.5" aria-label="FireBridge home">
       <LogoMark className="transition-transform group-hover:rotate-[-8deg]" />
       {!compact && (
         <span className="leading-none">
-          <span className="block font-display text-[15px] font-semibold tracking-tight">Wildfire Intelligence</span>
+          <span className="block font-display text-[15px] font-semibold tracking-tight">FireBridge</span>
           <span className="mt-1 block font-mono text-[9.5px] uppercase tracking-[0.22em] text-muted">Earth Observation · AI</span>
         </span>
       )}
