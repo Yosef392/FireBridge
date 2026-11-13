@@ -142,6 +142,8 @@ Executed notebooks are kept as a record in [`notebooks/colab_runs/2026-11-14/`](
 
 ### Rerun with the fixed notebook 4, study regions only (14 Nov)
 
+Executed notebooks 4 and 5: [`notebooks/colab_runs/2026-11-14-rerun/`](../notebooks/colab_runs/2026-11-14-rerun/).
+
 This is the run now in the app (`public/data/model.json`).
 
 **Test 2022–2024, all regions:**
