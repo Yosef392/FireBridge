@@ -28,7 +28,8 @@ The data pipeline and the per-detection baseline work end to end; the baseline's
 | 3. Prediction notebook (per MODIS detection) | Done, tested on Egypt + Portugal | XGBoost beats the average ratio (deviance 1.62 vs 2.78), final test bias −5% |
 | 4. Harmonization notebook (version 2) | Working, tested on Egypt + Portugal | Test 2022–2024: total bias +0.3%, monthly WAPE 25% (ratio: −9%, 31%); 2012 jump 9.4× → 1.15× in the Delta. See [Version 2 results](#version-2-results-so-far) |
 | Naive baseline write-up | Done | [`docs/naive-baseline.md`](naive-baseline.md) |
-| Web app | Running on demo data | Landing page, dashboard, map, analytics, predictions, about |
+| 5. Export notebook | Done | JSON for the app in `public/data/` |
+| Web app | Calendar page on real data; other pages still demo | `/dashboard/calendar`: calendar, yearly chart, 2012 check, scores, anomalies |
 
 **What the baseline taught us:**
 
@@ -134,13 +135,17 @@ We build on the web app already in this repo instead of a new site. Two changes 
 
 **1. Point it at the challenge.** The app is currently framed as wildfire monitoring and risk forecasting (`/dashboard/predictions`: probability of elevated fire activity, precision/recall). The challenge asks for harmonized records and a burning-activity calendar, so:
 
-- [ ] Add **`/dashboard/calendar`** (the main view): months across, years 2000–2024 down, colour = harmonized fire activity. A toggle switches to raw MODIS or raw VIIRS so people see the 2012 jump disappear.
-- [ ] Add a **yearly line**: raw MODIS, real VIIRS and harmonized with its uncertainty band, the 2012 switch marked (Analytics page).
+- [x] Add **`/dashboard/calendar`** (the main view): months across, years 2000–2024 down, colour = harmonized fire activity. A toggle switches to raw MODIS or raw VIIRS so people see the 2012 jump disappear.
+- [x] Add a **yearly line**: raw MODIS, real VIIRS and harmonized with its uncertainty band, the 2012 switch marked (on the Calendar page, with the 2012 jump check cards, test scores and anomalies).
 - [ ] Turn **Predictions** into **Harmonization**: model comparison table (Poisson deviance, bias %, WAPE %), blind spot per region, leave-one-region-out. Replace the precision/recall/ROC-AUC cards; those are classification metrics and don't fit a count model.
 - [ ] **Anomalies**: the months that stand out, with each region's known event highlighted.
 - [ ] Swap the 8 demo regions for our 7 core regions (bbox, fire type, event dates) and update the landing page and About text to the harmonization story.
 
-**2. No backend: static JSON.** A FastAPI server is one more thing to deploy and keep alive by Sunday. Notebook 5 writes JSON into `public/data/`, and `src/lib/api/client.ts` gets a third mode, `static`, that fetches those files. Deploy on Vercel (free, native Next.js).
+**2. No backend: static JSON.** A FastAPI server is one more thing to deploy and keep alive by Sunday. Notebook 5 writes JSON into `public/data/`, and [`src/lib/harmonized.ts`](../src/lib/harmonized.ts) loads it. The Calendar page always reads these real files; the older demo pages are unchanged until we move them over. Deploy on Vercel (free, native Next.js).
+
+- [x] Notebook 5 export + `src/lib/harmonized.ts` loader; `public/data/` holds real results for Egypt Nile Delta + Portugal Centro
+- [ ] Re-export with all 7 regions once notebook 4 has run on them
+- [ ] Map page: draw `cells/<region>/<year>.json` (harmonized vs raw) for a chosen month
 
 **Data contract (notebook 5 writes, the app reads):**
 
