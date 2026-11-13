@@ -1,0 +1,152 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-display-face), var(--font-inter), ui-sans-serif, sans-serif;
+  --font-mono: var(--font-mono-face), ui-monospace, SFMono-Regular, monospace;
+
+  --color-background: #07111f;
+  --color-surface: #0b1a2e;
+  --color-surface-2: #10233d;
+  --color-surface-3: #16304f;
+  --color-border: rgba(148, 178, 219, 0.12);
+  --color-border-strong: rgba(148, 178, 219, 0.22);
+  --color-foreground: #e7eef8;
+  --color-muted: #8ea2bf;
+  --color-subtle: #5f7493;
+
+  --color-primary: #4c9eff;
+  --color-primary-foreground: #04101f;
+  --color-accent: #5ce1e6;
+  --color-fire: #ff7a2f;
+  --color-fire-soft: #ffb347;
+  --color-ember: #ff3d4e;
+  --color-success: #2fa98c;
+  --color-warning: #e9b949;
+  --color-danger: #e5484d;
+
+  --animate-pulse-ring: pulse-ring 2.4s cubic-bezier(0.2, 0.6, 0.35, 1) infinite;
+  --animate-fade-up: fade-up 0.6s ease-out both;
+  --animate-scan: scan 6s linear infinite;
+  --animate-shimmer: shimmer 1.6s linear infinite;
+
+  @keyframes pulse-ring {
+    0% { transform: scale(0.6); opacity: 0.9; }
+    100% { transform: scale(2.4); opacity: 0; }
+  }
+  @keyframes fade-up {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes scan {
+    0% { transform: translateY(-100%); }
+    100% { transform: translateY(100%); }
+  }
+  @keyframes shimmer {
+    0% { background-position: -400px 0; }
+    100% { background-position: 400px 0; }
+  }
+}
+
+@layer base {
+  html {
+    color-scheme: dark;
+    scroll-behavior: smooth;
+  }
+  body {
+    background: var(--color-background);
+    color: var(--color-foreground);
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+  }
+  * {
+    border-color: var(--color-border);
+  }
+  ::selection {
+    background: rgba(255, 122, 47, 0.35);
+  }
+  :focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+}
+
+@layer components {
+  .bg-grid {
+    background-image:
+      linear-gradient(rgba(148, 178, 219, 0.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(148, 178, 219, 0.05) 1px, transparent 1px);
+    background-size: 48px 48px;
+  }
+  .glass {
+    background: linear-gradient(180deg, rgba(16, 35, 61, 0.72), rgba(11, 26, 46, 0.72));
+    backdrop-filter: blur(12px);
+  }
+  .text-gradient-fire {
+    background: linear-gradient(92deg, #ffb347 0%, #ff7a2f 45%, #ff3d4e 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .skeleton {
+    background: linear-gradient(90deg, rgba(148, 178, 219, 0.06) 0%, rgba(148, 178, 219, 0.14) 50%, rgba(148, 178, 219, 0.06) 100%);
+    background-size: 800px 100%;
+    animation: var(--animate-shimmer);
+  }
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(148, 178, 219, 0.2) transparent;
+  }
+}
+
+/* Leaflet theming */
+.leaflet-container {
+  background: #050d18;
+  font-family: var(--font-sans);
+}
+.leaflet-popup-content-wrapper,
+.leaflet-popup-tip {
+  background: #0f2139;
+  color: var(--color-foreground);
+  border: 1px solid rgba(148, 178, 219, 0.2);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
+}
+.leaflet-popup-content-wrapper {
+  border-radius: 12px;
+}
+.leaflet-popup-content {
+  margin: 14px 16px;
+}
+.leaflet-container a.leaflet-popup-close-button {
+  color: var(--color-muted);
+}
+.leaflet-bar a {
+  background: #0f2139;
+  color: var(--color-foreground);
+  border-bottom-color: rgba(148, 178, 219, 0.2);
+}
+.leaflet-bar a:hover {
+  background: #16304f;
+}
+.leaflet-control-attribution {
+  background: rgba(7, 17, 31, 0.75) !important;
+  color: #7f93b0 !important;
+}
+.leaflet-control-attribution a {
+  color: #9fb4d1 !important;
+}
+
+/* Recharts focus outline off (keyboard focus handled by tooltip) */
+.recharts-wrapper *:focus {
+  outline: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
