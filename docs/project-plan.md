@@ -26,7 +26,7 @@ The data pipeline and the per-detection baseline work end to end; the baseline's
 | 1. Downloading notebook | Done | 9 study regions from the team plan, 2013–2024, Parquet on Drive |
 | 2. Preprocessing notebook | Done | Profiling, EDA plots, cleaning (vegetation fires only) |
 | 3. Prediction notebook (per MODIS detection) | Done, tested on Egypt + Portugal | XGBoost beats the average ratio (deviance 1.62 vs 2.78), final test bias −5% |
-| 4. Harmonization notebook (version 2) | Working, tested on Egypt + Portugal | Test 2022–2024: total bias −0.5%, monthly WAPE 26% (ratio: −9%, 31%); 2012 jump 9.4× → 1.14× in the Delta. See [Version 2 results](#version-2-results-so-far) |
+| 4. Harmonization notebook (version 2) | Ran on Colab for all 7 regions (see [first full run](#first-full-colab-run-14-nov)); earlier test on Egypt + Portugal | Test 2022–2024: total bias −0.5%, monthly WAPE 26% (ratio: −9%, 31%); 2012 jump 9.4× → 1.14× in the Delta. See [Version 2 results](#version-2-results-so-far) |
 | Naive baseline write-up | Done | [`docs/naive-baseline.md`](naive-baseline.md) |
 | 5. Export notebook | Done | JSON for the app in `public/data/` |
 | Web app | Calendar page on real data; other pages still demo | `/dashboard/calendar`: calendar, yearly chart, 2012 check, scores, anomalies |
@@ -113,6 +113,32 @@ Tested on Egypt Nile Delta + Portugal Centro (MODIS 2000–2024, VIIRS 2013–20
 **Known events:** Portugal's Jun and Oct 2017 fires are the two top anomalies (z = 29.7 and 22.9).
 
 **Not solved yet:** leave-one-region-out is poor (Egypt −84%, Portugal +80% bias). Two regions with opposite fire types can't teach a new one; this should improve with all 7 regions. The ensemble band shows model uncertainty only, so it is narrower than the real error.
+
+### First full Colab run (14 Nov)
+
+Executed notebooks are kept as a record in [`notebooks/colab_runs/2026-11-14/`](../notebooks/colab_runs/2026-11-14/); the clean source notebooks stay in `notebooks/`.
+
+**2012 jump check (2011 → 2013 change):** the harmonized series lands close to the real VIIRS-era change in every region.
+
+| Region | Raw MODIS→VIIRS | Real (VIIRS-scale) | Harmonized |
+| --- | --- | --- | --- |
+| Australia NSW | 5.28× | 1.08× | 1.26× |
+| Brazil North Pantanal | 1.97× | 0.52× | 0.48× |
+| Canada NWT (south) | 204.8× | 31.1× | 37.0× |
+| Egypt Nile Delta | 9.38× | 1.20× | 1.16× |
+| Guinea Kankan & Siguiri | 4.00× | 0.98× | 0.97× |
+| Indonesia Central Kalimantan | 8.74× | 1.78× | 1.87× |
+| Portugal Centro | 1.99× | 0.75× | 0.81× |
+
+**Known events found as top anomalies:** NSW Nov & Dec 2019 (z 29.6, 18.5), Pantanal 2020, Canada Sep & May 2023 (z 34.6, 13.9), Portugal Jun & Oct 2017 (z 26.8, 22.1).
+
+**Test 2022–2024 by region (main model):** total bias NSW −7.4%, Pantanal −1.0%, Canada +10.6%, Delta −8.8%, Guinea −3.6%, Indonesia +16.7%, Portugal −12.6%; monthly WAPE 7.6–19.6%, except Portugal 38%. Overall: main +4.9% bias / 11.9% WAPE, ratio +4.8% / 11.6%, correlation 0.99; per cell the main model is far better (deviance 1.42 vs 6.07).
+
+**Caveats, to fix in the rerun:**
+
+- This run used the **older notebook 4** (before the region-name fix and `report.json`), so the region features were all zero and the app has no test scores yet.
+- It also trained on **whole countries** (Australia, Brazil, Egypt, Greece, Turkey) that contain the study regions. That double-counts fires and leaks each held-out region into leave-one-region-out, so the LORO numbers from this run (e.g. Delta −59%, Portugal +45%) aren't trustworthy. Notebook 4 now uses only the study regions by default.
+- On totals for large regions the ratio baseline is as good as the main model; the main model's advantage is per cell and per month, which is what the map and calendar show.
 
 ## Validation: do the known fire events show up?
 
