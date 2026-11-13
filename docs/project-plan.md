@@ -26,7 +26,7 @@ The data pipeline and the per-detection baseline work end to end; the baseline's
 | 1. Downloading notebook | Done | 9 study regions from the team plan, 2013–2024, Parquet on Drive |
 | 2. Preprocessing notebook | Done | Profiling, EDA plots, cleaning (vegetation fires only) |
 | 3. Prediction notebook (per MODIS detection) | Done, tested on Egypt + Portugal | XGBoost beats the average ratio (deviance 1.62 vs 2.78), final test bias −5% |
-| 4. Harmonization notebook (version 2) | Working, tested on Egypt + Portugal | Test 2022–2024: total bias +0.3%, monthly WAPE 25% (ratio: −9%, 31%); 2012 jump 9.4× → 1.15× in the Delta. See [Version 2 results](#version-2-results-so-far) |
+| 4. Harmonization notebook (version 2) | Working, tested on Egypt + Portugal | Test 2022–2024: total bias −0.5%, monthly WAPE 26% (ratio: −9%, 31%); 2012 jump 9.4× → 1.14× in the Delta. See [Version 2 results](#version-2-results-so-far) |
 | Naive baseline write-up | Done | [`docs/naive-baseline.md`](naive-baseline.md) |
 | 5. Export notebook | Done | JSON for the app in `public/data/` |
 | Web app | Calendar page on real data; other pages still demo | `/dashboard/calendar`: calendar, yearly chart, 2012 check, scores, anomalies |
@@ -90,6 +90,9 @@ The main model predicts how many VIIRS detections a 10 km grid cell would have h
 
 ### Version 2 results so far
 
+Full write-ups: [project report (PDF)](FireBridge_Project_Report.pdf) · [version 2 models (PDF)](FireBridge_V2_Models.pdf).
+
+
 Tested on Egypt Nile Delta + Portugal Centro (MODIS 2000–2024, VIIRS 2013–2024, 607 cells, 182,100 cell-months). Notebook: [`notebooks/4_Harmonization.ipynb`](../notebooks/4_Harmonization.ipynb).
 
 **Main model: the ratio × a learned correction.** XGBoost (Poisson loss) starts from the per-region ratio (and, where MODIS saw nothing, that region's typical VIIRS count) and learns how much to scale it. Plain gradient boosting fit cells well but underestimated the biggest fire months, because trees can't predict beyond what they saw.
@@ -97,17 +100,17 @@ Tested on Egypt Nile Delta + Portugal Centro (MODIS 2000–2024, VIIRS 2013–20
 | Test years 2022–2024 | Cell deviance | Total bias | Monthly WAPE | Monthly corr |
 | --- | --- | --- | --- | --- |
 | Average ratio (per region) | 7.26 | −9.1% | 31.1% | 0.961 |
-| Plain gradient boosting | 1.17 | −8.1% | 39.6% | 0.956 |
-| **Ratio × learned correction** | **0.96** | **+0.3%** | **24.7%** | **0.982** |
+| Plain gradient boosting | 0.99 | −3.9% | 30.4% | 0.960 |
+| **Ratio × learned correction** | **0.96** | **−0.5%** | **26.0%** | **0.977** |
 
 **The 2012 check (2013–15 vs 2009–11):**
 
 | Region | Raw jump (MODIS → VIIRS) | Real change (MODIS only) | Harmonized jump |
 | --- | --- | --- | --- |
-| Egypt Nile Delta | 9.38× | 1.20× | 1.15× |
+| Egypt Nile Delta | 9.38× | 1.20× | 1.14× |
 | Portugal Centro | 1.99× | 0.75× | 0.87× |
 
-**Known events:** Portugal's Jun and Oct 2017 fires are the two top anomalies (z = 31.8 and 23.4).
+**Known events:** Portugal's Jun and Oct 2017 fires are the two top anomalies (z = 29.7 and 22.9).
 
 **Not solved yet:** leave-one-region-out is poor (Egypt −84%, Portugal +80% bias). Two regions with opposite fire types can't teach a new one; this should improve with all 7 regions. The ensemble band shows model uncertainty only, so it is narrower than the real error.
 

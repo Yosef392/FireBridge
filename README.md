@@ -80,7 +80,7 @@ The harmonization pipeline lives in [`notebooks/`](notebooks/) and runs on Googl
 | [`4_Harmonization.ipynb`](notebooks/4_Harmonization.ipynb) | Version 2: VIIRS-equivalent fire counts per 10 km cell × month, 2000–2024, with uncertainty band |
 | [`5_Export.ipynb`](notebooks/5_Export.ipynb) | Writes the results as JSON into `public/data/` for the web app |
 
-Team plan: [`docs/project-plan.md`](docs/project-plan.md) · Baseline write-up: [`docs/naive-baseline.md`](docs/naive-baseline.md)
+Team plan: [`docs/project-plan.md`](docs/project-plan.md) · Baseline write-up: [`docs/naive-baseline.md`](docs/naive-baseline.md) · [Project report (PDF)](docs/FireBridge_Project_Report.pdf) · [Version 2 models (PDF)](docs/FireBridge_V2_Models.pdf)
 
 ## Notes
 
