@@ -2,7 +2,7 @@
 
 AI-powered wildfire monitoring, analytics and early-warning prototype — a NASA Space Apps Challenge project built around the structure of NASA FIRMS **MODIS** and **VIIRS** active-fire data.
 
-> **Everything currently shown in the app is illustrative demo data.** No NASA API is called and no real-time predictions are produced. Demo values are labelled “Demo Data” / “Simulated” throughout the UI.
+> **The Calendar page shows real harmonized NASA FIRMS results (from `public/data/`). The other pages still show illustrative demo data.** No NASA API is called and no real-time predictions are produced. Demo values are labelled “Demo Data” / “Simulated” throughout the UI.
 
 ## Quick start
 
@@ -19,6 +19,7 @@ npm run typecheck
 |---|---|
 | `/` | Landing page: hero globe, problem/solution, methodology, features, data sources, team |
 | `/dashboard` | Overview: KPIs, detections time series, monthly & seasonal charts, regional distribution, risk mix, recent hotspots |
+| `/dashboard/calendar` | **Real NASA FIRMS results:** harmonized burning-activity calendar 2000–2024 per study region, yearly totals showing the 2012 jump removed, test scores, anomalies (reads `public/data/*.json` from notebook 5) |
 | `/dashboard/map` | Leaflet hotspot explorer: risk-coloured markers, legend toggles, popups, dark/satellite basemap |
 | `/dashboard/analytics` | Yearly trends, month×year overlay, FRP histogram, hemisphere-aware seasons, regional comparison |
 | `/dashboard/predictions` | Simulated model outlook by region & horizon, feature importance, metric placeholders |
@@ -77,6 +78,7 @@ The harmonization pipeline lives in [`notebooks/`](notebooks/) and runs on Googl
 | [`2_Preprocessing.ipynb`](notebooks/2_Preprocessing.ipynb) | Profiling, EDA plots, cleaning (vegetation fires only) |
 | [`3_Prediction.ipynb`](notebooks/3_Prediction.ipynb) | Per-detection MODIS → VIIRS baseline: matching, 7 models, chronological test |
 | [`4_Harmonization.ipynb`](notebooks/4_Harmonization.ipynb) | Version 2: VIIRS-equivalent fire counts per 10 km cell × month, 2000–2024, with uncertainty band |
+| [`5_Export.ipynb`](notebooks/5_Export.ipynb) | Writes the results as JSON into `public/data/` for the web app |
 
 Team plan: [`docs/project-plan.md`](docs/project-plan.md) · Baseline write-up: [`docs/naive-baseline.md`](docs/naive-baseline.md)
 
