@@ -1,220 +1,238 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Layers, Satellite } from "lucide-react";
-import { FireMap } from "@/components/map";
+import { useEffect, useMemo, useState } from "react";
+import { CalendarDays, MapPinned, Satellite } from "lucide-react";
+import { CellMap, MapLoading } from "@/components/map";
+import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Segmented } from "@/components/ui/segmented";
-import { ChartCard, DemoBadge, EmptyState, ErrorState, Notice, PageHeader, RiskBadge } from "@/components/dashboard/primitives";
-import { HotspotTable } from "@/components/dashboard/hotspot-table";
-import { MapLoading } from "@/components/map";
-import { useDetections } from "@/hooks/use-fire-data";
-import { useFilters } from "@/context/filters";
-import { REGION_BY_ID } from "@/data/demo/regions";
-import { RISK_COLORS, SOURCE_COLORS } from "@/lib/colors";
-import { RISK_LEVELS, type FireDetection, type RiskLevel } from "@/lib/types";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ChartCard, ErrorState, Notice, PageHeader } from "@/components/dashboard/primitives";
+import { RAMP } from "@/components/charts/harmonized-charts";
+import { monthLabel } from "@/components/charts/region-charts";
+import type { MapCell } from "@/components/map/cell-map";
 import type { Basemap } from "@/components/map/leaflet-map";
-import { formatRange } from "@/lib/dates";
-import { cn, fmtInt } from "@/lib/utils";
+import { useAsync } from "@/hooks/use-async";
+import { fetchCellIndex, fetchCellYear, fetchHarmonizedRegions, regionLabel } from "@/lib/harmonized";
+import { fmtCompact, fmtInt } from "@/lib/utils";
 
-const MAX_POINTS = 2500;
-const WORLD: { center: [number, number]; zoom: number } = { center: [18, 15], zoom: 2 };
+const VIIRS_FROM = 2013;
+const YEARS = Array.from({ length: 2024 - 2001 + 1 }, (_, i) => 2024 - i);
+type Metric = "harmonized" | "modis" | "viirs";
+
+const METRIC_HELP: Record<Metric, string> = {
+  harmonized: "The harmonized record on the VIIRS scale: real VIIRS from 2013, the model's estimate from MODIS before that.",
+  modis: "Raw MODIS detections (Terra + Aqua, ~1 km pixels).",
+  viirs: "Raw VIIRS detections (Suomi NPP, 375 m pixels). Only exists from 2012.",
+};
 
 export default function MapPage() {
-  const { filters, reset } = useFilters();
-  const { status, data, error, retry } = useDetections();
-  const [visibleRisks, setVisibleRisks] = useState<Set<RiskLevel>>(new Set(RISK_LEVELS));
-  const [sampling, setSampling] = useState<"representative" | "intense" | "recent">("representative");
+  const regions = useAsync((s) => fetchHarmonizedRegions(s), []);
+  const [regionId, setRegionId] = useState<string | null>(null);
+  const [year, setYear] = useState(2024);
+  const [month, setMonth] = useState<string>("all");
+  const [metric, setMetric] = useState<Metric>("harmonized");
   const [basemap, setBasemap] = useState<Basemap>("dark");
 
-  const view = useMemo(() => {
-    if (!data) return null;
-    const filtered = data.detections.filter((d) => visibleRisks.has(d.risk));
-    const byFrp = [...filtered].sort((a, b) => b.frp - a.frp);
-    let picked: FireDetection[];
-    if (sampling === "intense") picked = byFrp.slice(0, MAX_POINTS);
-    else if (sampling === "recent")
-      picked = [...filtered].sort((a, b) => (b.acq_date + b.acq_time).localeCompare(a.acq_date + a.acq_time)).slice(0, MAX_POINTS);
-    else {
-      // Evenly spaced sample keeps the true mix of risk classes and regions.
-      const step = Math.max(1, filtered.length / MAX_POINTS);
-      picked = [];
-      for (let i = 0; i < filtered.length && picked.length < MAX_POINTS; i += step) picked.push(filtered[Math.floor(i)]);
+  useEffect(() => {
+    if (!regionId && regions.data?.length) {
+      const wanted = new URLSearchParams(window.location.search).get("region");
+      setRegionId(regions.data.find((r) => r.id === wanted)?.id ?? regions.data[0].id);
     }
-    // Draw low-intensity first so intense hotspots sit on top.
-    const shown = [...picked].sort((a, b) => a.frp - b.frp);
-    const ordered = byFrp;
-    const counts = Object.fromEntries(RISK_LEVELS.map((r) => [r, 0])) as Record<RiskLevel, number>;
-    for (const d of data.detections) counts[d.risk]++;
-    return { shown, total: filtered.length, counts, top: ordered.slice(0, 6) };
-  }, [data, visibleRisks, sampling]);
+  }, [regions.data, regionId]);
 
-  const region = filters.regionId === "ALL" ? null : REGION_BY_ID[filters.regionId];
-  const target = region ? { center: region.center, zoom: region.zoom } : WORLD;
+  const index = useAsync((s) => (regionId ? fetchCellIndex(regionId, s) : Promise.resolve(null)), [regionId]);
+  const cellYear = useAsync((s) => (regionId ? fetchCellYear(regionId, year, s) : Promise.resolve(null)), [regionId, year]);
+  const region = regions.data?.find((r) => r.id === regionId) ?? null;
+  const metricShown: Metric = metric === "viirs" && year < 2012 ? "harmonized" : metric;
 
-  const toggleRisk = (r: RiskLevel) =>
-    setVisibleRisks((s) => {
-      const n = new Set(s);
-      if (n.has(r)) n.delete(r);
-      else n.add(r);
-      return n;
-    });
+  const view = useMemo(() => {
+    if (!index.data || !cellYear.data || index.data.regionId !== regionId || cellYear.data.regionId !== regionId) return null;
+    const sums = new Map<number, number>();
+    const monthsUsed = month === "all" ? Object.keys(cellYear.data.months) : [month];
+    for (const mo of monthsUsed) {
+      for (const [c, h, m, v] of cellYear.data.months[mo] ?? []) {
+        const val = metricShown === "modis" ? m : metricShown === "viirs" || year >= VIIRS_FROM ? (v ?? 0) : h;
+        if (val > 0) sums.set(c, (sums.get(c) ?? 0) + val);
+      }
+    }
+    const cells: MapCell[] = [];
+    let total = 0;
+    let max = 0;
+    for (const [c, value] of sums) {
+      const b = index.data.cells[c];
+      if (!b) continue;
+      total += value;
+      // Model estimates spread tiny fractions over many cells; only draw cells worth about one detection.
+      if (value < 0.5) continue;
+      max = Math.max(max, value);
+      cells.push({ bounds: b, value, label: `${((b[0] + b[2]) / 2).toFixed(2)}°, ${((b[1] + b[3]) / 2).toFixed(2)}°` });
+    }
+    cells.sort((a, b) => a.value - b.value);
+    const top = [...cells].reverse().slice(0, 6);
+    return { cells, total, max, top, cellCount: index.data.cells.length, gridKm: index.data.gridKm };
+  }, [index.data, cellYear.data, regionId, month, metricShown, year]);
+
+  const error = regions.error ?? index.error ?? cellYear.error;
+  const period = month === "all" ? String(year) : `${monthLabel(month)} ${year}`;
+  const modelled = metricShown === "harmonized" && year < VIIRS_FROM;
 
   return (
     <div className="space-y-6">
       <PageHeader
         eyebrow="Fire Map"
-        title="Hotspot explorer"
-        description="Simulated wildfire detections plotted on a dark basemap. Use the top bar to change the date window, region and satellite source; click any marker for its details."
-        actions={<DemoBadge label="Simulated points — not live observations" />}
+        title="Where the fires were"
+        description="Fire detections per 10 km grid cell inside each study region, from NASA FIRMS. Pick a region, a year and optionally one month; hover a cell for its count."
+        actions={
+          <>
+            <Badge variant="success">
+              <Satellite className="size-3" aria-hidden /> NASA FIRMS data
+            </Badge>
+            <label className="block w-64">
+              <span className="sr-only">Study region</span>
+              <Select value={regionId ?? undefined} onValueChange={setRegionId}>
+                <SelectTrigger aria-label="Study region">
+                  <span className="flex items-center gap-2 truncate">
+                    <MapPinned className="size-4 shrink-0 text-accent" aria-hidden />
+                    <SelectValue placeholder="Loading regions…" />
+                  </span>
+                </SelectTrigger>
+                <SelectContent>
+                  {(regions.data ?? []).map((r) => (
+                    <SelectItem key={r.id} value={r.id}>
+                      {regionLabel(r)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </label>
+          </>
+        }
       />
 
-      <Card className="overflow-hidden p-2">
-        <div className="relative">
-          {status === "error" && !data ? (
-            <ErrorState error={error!} onRetry={retry} height={560} />
-          ) : !view ? (
-            <MapLoading />
-          ) : (
-            <FireMap detections={view.shown} center={target.center} zoom={target.zoom} height="min(68vh, 640px)" basemap={basemap} />
-          )}
-
-          {status === "loading" && data && (
-            <div className="pointer-events-none absolute left-1/2 top-3 z-[500] -translate-x-1/2 rounded-full border border-border bg-background/85 px-3 py-1 text-[11px] text-muted backdrop-blur">
-              Updating…
-            </div>
-          )}
-
-          {view && view.total === 0 && (
-            <div className="absolute inset-0 z-[500] flex items-center justify-center bg-background/60 p-6 backdrop-blur-sm">
-              <div className="w-full max-w-md">
-                <EmptyState
-                  height={200}
-                  message="No simulated detections match the current filters and risk toggles."
-                  action={
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        reset();
-                        setVisibleRisks(new Set(RISK_LEVELS));
-                      }}
-                    >
-                      Reset all filters
-                    </Button>
-                  }
-                />
-              </div>
-            </div>
-          )}
-
-          {/* Basemap toggle */}
-          <div className="absolute right-3 top-3 z-[500]">
-            <Segmented
-              ariaLabel="Basemap"
-              value={basemap}
-              onChange={setBasemap}
-              className="glass shadow-xl"
-              options={[
-                { value: "dark", label: "Dark" },
-                { value: "satellite", label: "Satellite" },
-              ]}
-            />
-          </div>
-
-          {/* Legend */}
-          <div className="glass absolute bottom-6 left-4 z-[500] w-[min(260px,calc(100%-2rem))] rounded-xl border border-border-strong p-3 shadow-xl">
-            <p className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.14em] text-muted">
-              <Layers className="size-3.5" aria-hidden /> Illustrative risk
-            </p>
-            <ul className="mt-2 space-y-1">
-              {RISK_LEVELS.map((r) => {
-                const on = visibleRisks.has(r);
-                return (
-                  <li key={r}>
-                    <button
-                      type="button"
-                      onClick={() => toggleRisk(r)}
-                      aria-pressed={on}
-                      className={cn(
-                        "flex w-full cursor-pointer items-center justify-between rounded-md px-1.5 py-1 text-xs transition-colors hover:bg-white/5",
-                        !on && "opacity-40",
-                      )}
-                    >
-                      <span className="flex items-center gap-2">
-                        <span className="size-2.5 rounded-full ring-2 ring-[#07111f]" style={{ background: RISK_COLORS[r] }} aria-hidden />
-                        {r}
-                      </span>
-                      <span className="font-mono text-[11px] text-muted">{view ? fmtInt(view.counts[r]) : "—"}</span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
-            <p className="mt-2 border-t border-border pt-2 text-[10.5px] leading-snug text-subtle">
-              Marker size ∝ log(FRP). Click a class to hide it. Classes are FRP thresholds, not model predictions.
-            </p>
-          </div>
-        </div>
-      </Card>
-
-      <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <p className="text-xs text-muted">
-          {view ? (
-            <>
-              Showing <span className="font-mono text-foreground">{fmtInt(view.shown.length)}</span> of{" "}
-              <span className="font-mono text-foreground">{fmtInt(view.total)}</span> simulated detections
-              {data && <> · {formatRange(data.range)}</>}
-              {view.total > MAX_POINTS && <> · capped at {fmtInt(MAX_POINTS)} for performance</>}
-            </>
-          ) : (
-            "Loading detections…"
-          )}
-        </p>
-        <div className="flex items-center gap-2">
-          <span className="text-xs text-muted">Sampling</span>
-          <Segmented
-            ariaLabel="Point sampling"
-            value={sampling}
-            onChange={setSampling}
-            options={[
-              { value: "representative", label: "Representative" },
-              { value: "intense", label: "Highest FRP" },
-              { value: "recent", label: "Most recent" },
-            ]}
-          />
-        </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <label className="w-32">
+          <span className="sr-only">Year</span>
+          <Select value={String(year)} onValueChange={(v) => setYear(Number(v))}>
+            <SelectTrigger aria-label="Year">
+              <span className="flex items-center gap-2">
+                <CalendarDays className="size-4 text-primary" aria-hidden />
+                <SelectValue />
+              </span>
+            </SelectTrigger>
+            <SelectContent>
+              {YEARS.map((y) => (
+                <SelectItem key={y} value={String(y)}>
+                  {y}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </label>
+        <label className="w-36">
+          <span className="sr-only">Month</span>
+          <Select value={month} onValueChange={setMonth}>
+            <SelectTrigger aria-label="Month">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Whole year</SelectItem>
+              {Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, "0")).map((m) => (
+                <SelectItem key={m} value={m}>
+                  {monthLabel(m)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </label>
+        <Segmented
+          ariaLabel="Record"
+          value={metric}
+          onChange={setMetric}
+          options={[
+            { value: "harmonized", label: "Harmonized" },
+            { value: "modis", label: "MODIS" },
+            { value: "viirs", label: "VIIRS" },
+          ]}
+        />
+        <Segmented
+          ariaLabel="Basemap"
+          className="ml-auto"
+          value={basemap}
+          onChange={setBasemap}
+          options={[
+            { value: "dark", label: "Dark" },
+            { value: "satellite", label: "Satellite" },
+          ]}
+        />
       </div>
 
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-3">
-        <ChartCard className="xl:col-span-2" title="Most intense detections" description="Top simulated hotspots by Fire Radiative Power in the current view">
-          {view && view.top.length ? <HotspotTable rows={view.top} /> : <EmptyState height={200} />}
-        </ChartCard>
-        <ChartCard title="Satellite sources" description="What each sensor contributes" demo={false}>
-          <ul className="space-y-3 text-xs">
-            {(["MODIS", "VIIRS"] as const).map((s) => (
-              <li key={s} className="rounded-lg border border-border bg-surface/60 p-3">
-                <p className="flex items-center gap-2 font-medium">
-                  <Satellite className="size-3.5" style={{ color: SOURCE_COLORS[s] }} aria-hidden />
-                  {s}
-                  <span className="text-muted">{s === "MODIS" ? "· Terra & Aqua" : "· Suomi NPP & NOAA-20"}</span>
-                </p>
-                <p className="mt-1 leading-relaxed text-muted">
-                  {s === "MODIS"
-                    ? "1 km fire pixels, archive since 2000. Fewer but larger detections — higher FRP per pixel."
-                    : "375 m fire pixels, archive since 2012. Detects smaller fires; more detections at lower FRP."}
-                </p>
-              </li>
-            ))}
-            <li>
-              <Notice>
-                Points on this map are generated by the demo dataset to mimic the structure of FIRMS records. Example
-                classes: <RiskBadge risk="Low" /> <RiskBadge risk="Extreme" />
-              </Notice>
-            </li>
-          </ul>
-        </ChartCard>
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-4">
+        <Card className="overflow-hidden p-2 xl:col-span-3">
+          {error ? (
+            <ErrorState error={error} onRetry={() => (regions.retry(), index.retry(), cellYear.retry())} height={560} />
+          ) : !view || !region ? (
+            <MapLoading height="min(68vh, 640px)" />
+          ) : (
+            <CellMap cells={view.cells} max={view.max} bbox={region.bbox} basemap={basemap} height="min(68vh, 640px)" />
+          )}
+          <div className="flex flex-wrap items-center gap-x-6 gap-y-2 px-3 pb-2 pt-3 text-[11px] text-muted">
+            <span className="flex items-center gap-2">
+              1
+              <span className="h-2 w-40 rounded-full" style={{ background: `linear-gradient(90deg, ${RAMP.slice(1).join(", ")})` }} aria-hidden />
+              {view ? fmtCompact(view.max) : "—"} detections per cell (log scale)
+            </span>
+            <span className="flex items-center gap-1.5">
+              <span className="h-0 w-5 border-t border-dashed border-white/60" aria-hidden /> Study region
+            </span>
+          </div>
+        </Card>
+
+        <div className="space-y-6">
+          <ChartCard title={period} description={METRIC_HELP[metricShown]}>
+            <dl className="space-y-3 text-xs">
+              <div className="flex justify-between">
+                <dt className="text-muted">Detections</dt>
+                <dd className="font-mono tabular-nums">{view ? fmtInt(view.total) : "—"}</dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-muted">Cells with fire</dt>
+                <dd className="font-mono tabular-nums">
+                  {view ? `${fmtInt(view.cells.length)} of ${fmtInt(view.cellCount)}` : "—"}
+                </dd>
+              </div>
+              <div className="flex justify-between">
+                <dt className="text-muted">Cell size</dt>
+                <dd className="font-mono tabular-nums">{view ? `${view.gridKm} × ${view.gridKm} km` : "—"}</dd>
+              </div>
+            </dl>
+            {metric === "viirs" && year < 2012 && (
+              <p className="mt-3 text-[11px] text-subtle">VIIRS didn’t exist yet in {year}, so the harmonized record is shown.</p>
+            )}
+          </ChartCard>
+
+          <ChartCard title="Busiest cells" description="Cell centre and detection count">
+            {view && view.top.length ? (
+              <ol className="space-y-2 text-xs">
+                {view.top.map((c, i) => (
+                  <li key={i} className="flex justify-between gap-3">
+                    <span className="font-mono text-muted">{c.label}</span>
+                    <span className="font-mono tabular-nums">{fmtInt(c.value)}</span>
+                  </li>
+                ))}
+              </ol>
+            ) : (
+              <p className="text-xs text-muted">{view ? "No fire detections in this period." : "Loading…"}</p>
+            )}
+          </ChartCard>
+
+          {modelled && (
+            <Notice tone="info">
+              {year} is before VIIRS, so each cell shows the model's estimate of what VIIRS would have counted there, built from MODIS.
+              Values below 1 are hidden, and cell-level estimates are less certain than the regional totals.
+            </Notice>
+          )}
+        </div>
       </div>
     </div>
   );

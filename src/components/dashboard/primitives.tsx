@@ -122,7 +122,7 @@ export function ChartCard({
   actions,
   children,
   className,
-  demo = true,
+  demo = false,
   footer,
 }: {
   title: string;

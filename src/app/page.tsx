@@ -24,7 +24,6 @@ import { Button } from "@/components/ui/button";
 import { Logo } from "@/components/layout/logo";
 import { EarthGlobe } from "@/components/landing/earth-globe";
 import { Pipeline } from "@/components/landing/pipeline";
-import { DemoBadge } from "@/components/dashboard/primitives";
 
 const NAV = [
   { href: "#overview", label: "Overview" },
@@ -45,12 +44,12 @@ function SectionHeading({ eyebrow, title, text }: { eyebrow: string; title: Reac
 }
 
 const FEATURES = [
-  { icon: Map, title: "Interactive fire map", text: "Explore hotspot detections on a Leaflet map with risk colouring, filters and per-detection details." },
-  { icon: BarChart3, title: "Historical analytics", text: "Inter-annual trends, monthly and hemisphere-aware seasonal comparisons, FRP distributions." },
-  { icon: BrainCircuit, title: "ML risk outlook", text: "Region-level probability of elevated fire activity for 7, 14 and 30-day horizons." },
-  { icon: Layers, title: "Explainable drivers", text: "Feature-importance view shows which signals — fire history, weather, vegetation — drive each outlook." },
-  { icon: BellRing, title: "Early-warning focus", text: "Surfaces regions trending above their seasonal baseline before activity peaks." },
-  { icon: ShieldCheck, title: "Honest by design", text: "Demo data and simulated outputs are clearly labelled everywhere; limitations are documented." },
+  { icon: Map, title: "Fire map", text: "Fire detections per 10 km cell for any region, year and month, on the harmonized, MODIS or VIIRS record." },
+  { icon: BarChart3, title: "Regional analytics", text: "Fire seasons, good and bad years, and how much more VIIRS sees than MODIS in each region." },
+  { icon: BrainCircuit, title: "Harmonization model", text: "A per-region ratio times an XGBoost correction rebuilds 2000–2012 on the VIIRS scale, with an uncertainty band." },
+  { icon: Layers, title: "Burning-activity calendar", text: "25 years of monthly fire activity per region in one consistent heatmap, with known events outlined." },
+  { icon: BellRing, title: "Anomaly detection", text: "Flags months far above the same month in other years: NSW 2019, Canada 2023 and Portugal 2017 come out on top." },
+  { icon: ShieldCheck, title: "Honest by design", text: "Every score is on years the model never saw, model estimates are labelled, and limitations are documented." },
 ];
 
 export default function LandingPage() {
@@ -94,9 +93,9 @@ export default function LandingPage() {
               <span className="text-gradient-fire">Before It Spreads.</span>
             </h1>
             <p className="mt-6 max-w-xl text-base leading-relaxed text-muted md:text-lg">
-              FireBridge turns two decades of NASA MODIS and VIIRS satellite fire observations into patterns,
-              hotspot analytics and machine-learning risk outlooks — so emerging fire activity can be spotted early,
-              region by region.
+              MODIS and VIIRS count fires differently, so joining their records creates a fake jump in 2012.
+              FireBridge harmonizes 25 years of NASA fire observations into one consistent record, so real trends
+              and unusual fire seasons can be seen, region by region.
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
               <Button asChild size="lg" variant="fire">
@@ -112,7 +111,7 @@ export default function LandingPage() {
               {[
                 ["2", "satellite sensors"],
                 ["375 m", "finest fire pixel"],
-                ["3", "forecast horizons"],
+                ["25 yrs", "one consistent record"],
               ].map(([v, l]) => (
                 <div key={l}>
                   <dt className="sr-only">{l}</dt>
@@ -136,13 +135,13 @@ export default function LandingPage() {
             </div>
             <div className="glass absolute bottom-[14%] right-0 hidden rounded-xl border border-border-strong px-3.5 py-2.5 shadow-2xl sm:block">
               <p className="flex items-center gap-1.5 font-mono text-[10px] uppercase tracking-[0.16em] text-subtle">
-                <Radar className="size-3 text-fire" aria-hidden /> Risk outlook · 7d
+                <Radar className="size-3 text-fire" aria-hidden /> Harmonized · NSW
               </p>
               <p className="mt-1 flex items-center gap-2 text-sm font-medium">
-                Elevated activity <span className="rounded-full bg-[#d23a78]/20 px-2 py-0.5 text-[11px] text-[#f3a6c6]">Extreme</span>
+                Nov 2019 anomaly <span className="rounded-full bg-[#d23a78]/20 px-2 py-0.5 text-[11px] text-[#f3a6c6]">z 27</span>
               </p>
             </div>
-            <p className="mt-2 text-center text-[11px] text-subtle">Visualisation — hotspots are illustrative</p>
+            <p className="mt-2 text-center text-[11px] text-subtle">Globe markers show our 7 study regions</p>
           </div>
         </div>
       </section>
@@ -153,7 +152,7 @@ export default function LandingPage() {
           <SectionHeading
             eyebrow="Project overview"
             title={<>From raw thermal anomalies to <span className="text-gradient-fire">actionable insight</span></>}
-            text="Satellites detect thousands of active fires every day, but raw detections alone don’t tell responders where activity is unusual, intensifying or likely to escalate. We built a platform that does."
+            text="Satellites detect thousands of active fires every day, but two sensors with different eyes make the long-term record inconsistent. We built a platform that joins them."
           />
           <div className="mt-14 grid grid-cols-1 gap-5 md:grid-cols-2">
             <div className="rounded-2xl border border-border bg-surface/60 p-7">
@@ -164,7 +163,7 @@ export default function LandingPage() {
               <ul className="mt-4 space-y-3 text-sm leading-relaxed text-muted">
                 <li className="flex gap-3"><Thermometer className="mt-0.5 size-4 shrink-0 text-fire-soft" aria-hidden />Fire seasons are becoming longer and more intense across many regions.</li>
                 <li className="flex gap-3"><Database className="mt-0.5 size-4 shrink-0 text-fire-soft" aria-hidden />Open satellite fire data is rich but large, noisy and hard to interpret without expertise.</li>
-                <li className="flex gap-3"><Clock className="mt-0.5 size-4 shrink-0 text-fire-soft" aria-hidden />By the time activity is obviously abnormal, the window for early action has often closed.</li>
+                <li className="flex gap-3"><Clock className="mt-0.5 size-4 shrink-0 text-fire-soft" aria-hidden />The two sensors count fires differently, so the switch in 2012 looks like a jump in fire activity that never happened.</li>
               </ul>
             </div>
             <div className="rounded-2xl border border-primary/25 bg-gradient-to-b from-primary/[0.07] to-surface/60 p-7">
@@ -173,9 +172,9 @@ export default function LandingPage() {
               </span>
               <h3 className="mt-5 font-display text-xl font-semibold">Our solution</h3>
               <ul className="mt-4 space-y-3 text-sm leading-relaxed text-muted">
-                <li className="flex gap-3"><Globe2 className="mt-0.5 size-4 shrink-0 text-accent" aria-hidden />Clean, harmonised MODIS + VIIRS archive aggregated into comparable regional signals.</li>
+                <li className="flex gap-3"><Globe2 className="mt-0.5 size-4 shrink-0 text-accent" aria-hidden />Clean MODIS + VIIRS archive gridded into 10 km cells and harmonized into one record.</li>
                 <li className="flex gap-3"><Activity className="mt-0.5 size-4 shrink-0 text-accent" aria-hidden />Analytics that reveal seasonality, trends and hotspot intensity at a glance.</li>
-                <li className="flex gap-3"><BrainCircuit className="mt-0.5 size-4 shrink-0 text-accent" aria-hidden />A machine-learning model that flags regions likely to see elevated fire activity, with explainable drivers.</li>
+                <li className="flex gap-3"><BrainCircuit className="mt-0.5 size-4 shrink-0 text-accent" aria-hidden />A machine-learning model that rebuilds the MODIS years on the VIIRS scale, tested on years it never saw.</li>
               </ul>
             </div>
           </div>
@@ -271,10 +270,9 @@ export default function LandingPage() {
             ))}
           </div>
           <div className="mx-auto mt-8 flex max-w-3xl flex-col items-center gap-3 rounded-2xl border border-fire-soft/25 bg-fire-soft/[0.05] p-5 text-center sm:flex-row sm:text-left">
-            <DemoBadge />
             <p className="text-xs leading-relaxed text-[#f3d3a6]">
-              The live demonstration uses a clearly labelled, synthetic dataset that mirrors the structure of FIRMS records.
-              No NASA API is called from this app and no real-time predictions are shown.
+              The dashboard shows real NASA FIRMS results for 7 study regions, processed in our Colab notebooks and served as
+              static files. It is a research prototype, not an operational fire-warning system.
             </p>
           </div>
         </div>
@@ -289,8 +287,7 @@ export default function LandingPage() {
               Explore the <span className="text-gradient-fire">mission dashboard</span>
             </h2>
             <p className="mx-auto mt-4 max-w-xl text-muted">
-              KPIs, an interactive hotspot map, historical analytics and the prediction interface — ready for a live
-              technical walkthrough.
+              The harmonized record for 7 regions: calendar, fire map, regional analytics and the model's test scores.
             </p>
             <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
               <Button asChild size="lg" variant="fire">

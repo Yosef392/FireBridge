@@ -2,11 +2,11 @@ import { BrainCircuit, ChevronRight, Filter, LayoutDashboard, Satellite, ScanSea
 
 export const PIPELINE = [
   { icon: Satellite, title: "Satellite Data", text: "MODIS & VIIRS active-fire records (FIRMS archive): location, time, FRP, brightness, confidence." },
-  { icon: Filter, title: "Data Cleaning", text: "Deduplicate overpasses, drop low-confidence pixels, harmonise sensors, grid to 0.5° cells." },
-  { icon: ScanSearch, title: "Exploratory Analysis", text: "Seasonality, inter-annual trends, FRP distributions, regional hotspot profiling." },
-  { icon: BrainCircuit, title: "Machine Learning", text: "Supervised classifier on lagged fire history, weather and vegetation features." },
-  { icon: ShieldAlert, title: "Risk Assessment", text: "Calibrated probability of elevated activity mapped to Low → Extreme categories." },
-  { icon: LayoutDashboard, title: "Dashboard", text: "Interactive maps, analytics and outlooks served through a FastAPI backend." },
+  { icon: Filter, title: "Data Cleaning", text: "Keep vegetation fires only, check for gaps, and grid every detection to 10 km equal-area cells per month." },
+  { icon: ScanSearch, title: "Exploratory Analysis", text: "Seasonality, the 2012 jump, and how many VIIRS fires each MODIS fire stands for, region by region." },
+  { icon: BrainCircuit, title: "Machine Learning", text: "Per-region ratio × XGBoost correction (Poisson), trained 2013–2020 and tested on 2022–2024." },
+  { icon: ShieldAlert, title: "Validation", text: "2012 jump check, held-out regions, and known fire events found as the top anomalies." },
+  { icon: LayoutDashboard, title: "Dashboard", text: "Calendar, map and analytics in a Next.js app, read from static JSON and hosted on Vercel." },
 ];
 
 export function Pipeline({ compact = false }: { compact?: boolean }) {

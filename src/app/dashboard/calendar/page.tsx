@@ -43,7 +43,10 @@ export default function CalendarPage() {
   const [scale, setScale] = useState<"linear" | "log">("log");
 
   useEffect(() => {
-    if (!regionId && regions.data?.length) setRegionId(regions.data[0].id);
+    if (!regionId && regions.data?.length) {
+      const wanted = new URLSearchParams(window.location.search).get("region");
+      setRegionId(regions.data.find((r) => r.id === wanted)?.id ?? regions.data[0].id);
+    }
   }, [regions.data, regionId]);
 
   const calendar = useAsync((s) => (regionId ? fetchCalendar(regionId, s) : Promise.resolve(null)), [regionId]);

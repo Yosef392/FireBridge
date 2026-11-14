@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { AlertTriangle, CheckCircle2, Database, Satellite, Server, Target } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { DemoBadge, Notice, PageHeader } from "@/components/dashboard/primitives";
+import { Notice, PageHeader } from "@/components/dashboard/primitives";
 import { Pipeline } from "@/components/landing/pipeline";
 
 export const metadata: Metadata = { title: "About & Methodology" };
@@ -36,8 +36,8 @@ const LIMITATIONS = [
   "Cloud and smoke cover, satellite overpass timing and dense canopy can cause fires to be missed entirely.",
   "MODIS and VIIRS differ in resolution and sensitivity; mixing them without harmonisation inflates counts where VIIRS dominates.",
   "Fire Radiative Power is an instantaneous measurement at overpass time and is not a direct measure of burned area or damage.",
-  "A model trained on historical patterns can under-react to unprecedented conditions (record heat, new land use, policy changes).",
-  "Predicted probabilities express relative likelihood of elevated activity; they are not ignition forecasts or evacuation guidance.",
+  "Before 2013 the record is a model estimate. Fires too small for MODIS to see at all can only be added back on average, not located individually.",
+  "The model is calibrated per region. On a region it has never seen, with a different fire type, its totals can be off by 50% or more.",
 ];
 
 export default function AboutPage() {
@@ -46,8 +46,7 @@ export default function AboutPage() {
       <PageHeader
         eyebrow="About & Methodology"
         title="How FireBridge works"
-        description="An end-to-end research prototype: from raw satellite fire detections to an interpretable, region-level outlook for elevated fire activity."
-        actions={<DemoBadge label="Prototype · Demo data" />}
+        description="A research prototype for the NASA Space Apps Challenge 2026: one consistent fire record from MODIS (2000–) and VIIRS (2012–), so fire trends can be read across the 2012 sensor switch."
       />
 
       <section aria-labelledby="workflow" className="space-y-4">
@@ -86,7 +85,8 @@ export default function AboutPage() {
         <Notice tone="info">
           Both products are distributed by NASA’s Fire Information for Resource Management System (FIRMS). Each record
           carries latitude, longitude, acquisition date/time, brightness temperature, Fire Radiative Power (FRP),
-          detection confidence and a day/night flag — the same fields this application’s data model uses.
+          detection confidence and a day/night flag. We use the yearly country archives for MODIS Collection 6.1 and VIIRS
+          Suomi NPP 375 m.
         </Notice>
       </section>
 
@@ -94,25 +94,25 @@ export default function AboutPage() {
         <Card>
           <CardHeader>
             <CardTitle id="target" className="flex items-center gap-2 text-base">
-              <Target className="size-4 text-fire" aria-hidden /> Prediction target: Elevated Fire Activity
+              <Target className="size-4 text-fire" aria-hidden /> What we predict
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 text-sm leading-relaxed text-muted">
             <p>
-              For each region and forecast horizon (7, 14 or 30 days), the model estimates the probability that the number
-              of active-fire detections will exceed that region’s historical <span className="text-foreground">75th percentile</span> for
-              the same time of year.
+              For every 10 × 10 km cell and month, the number of fire detections <span className="text-foreground">VIIRS would have
+              made</span>, predicted from what MODIS saw. Where both sensors exist (2013–2024) we can check the prediction against
+              the real VIIRS count; for 2000–2012 it rebuilds the record on the VIIRS scale.
             </p>
             <p>
-              Framing the problem as “elevated vs. normal” activity — rather than predicting individual ignitions — matches what
-              satellite data can support and gives decision-makers a comparable, region-normalised signal.
+              The model is a per-region VIIRS/MODIS ratio multiplied by a correction learned with gradient-boosted trees, trained
+              on 2013–2020, tuned on 2021 and tested once on 2022–2024.
             </p>
             <ul className="space-y-1.5">
               {[
-                "Low: P < 25%",
-                "Moderate: 25–50%",
-                "High: 50–75%",
-                "Extreme: ≥ 75%",
+                "7 study regions on 5 continents, 7 fire types",
+                "Vegetation fires only (FIRMS type 0)",
+                "5-model ensemble for an uncertainty band",
+                "Checked against documented fire events",
               ].map((t) => (
                 <li key={t} className="flex items-center gap-2 text-xs">
                   <CheckCircle2 className="size-3.5 text-success" aria-hidden /> {t}
@@ -130,17 +130,19 @@ export default function AboutPage() {
           </CardHeader>
           <CardContent className="space-y-3 text-sm leading-relaxed text-muted">
             <p>
-              The web app is a Next.js + TypeScript front end. All data flows through a single typed client
-              (<code className="font-mono text-xs text-foreground">src/lib/api/client.ts</code>), which today serves the bundled demo
-              archive and, with <code className="font-mono text-xs text-foreground">NEXT_PUBLIC_DATA_MODE=api</code>, calls the Python FastAPI
-              backend instead.
+              Five Python notebooks run on Google Colab: download the FIRMS archive, clean it, grid it, train the harmonization
+              model on a GPU, and export the results as static JSON.
             </p>
             <ul className="space-y-1.5 font-mono text-xs">
-              <li className="flex items-center gap-2"><Database className="size-3.5 text-subtle" aria-hidden /> GET /api/v1/regions</li>
-              <li className="flex items-center gap-2"><Database className="size-3.5 text-subtle" aria-hidden /> GET /api/v1/detections?preset=&amp;region=&amp;source=</li>
-              <li className="flex items-center gap-2"><Database className="size-3.5 text-subtle" aria-hidden /> GET /api/v1/predictions</li>
+              <li className="flex items-center gap-2"><Database className="size-3.5 text-subtle" aria-hidden /> /data/regions.json</li>
+              <li className="flex items-center gap-2"><Database className="size-3.5 text-subtle" aria-hidden /> /data/calendar_&lt;region&gt;.json</li>
+              <li className="flex items-center gap-2"><Database className="size-3.5 text-subtle" aria-hidden /> /data/cells/&lt;region&gt;/&lt;year&gt;.json</li>
+              <li className="flex items-center gap-2"><Database className="size-3.5 text-subtle" aria-hidden /> /data/model.json</li>
             </ul>
-            <p>No NASA API is called from the browser and no real-time predictions are produced in this prototype.</p>
+            <p>
+              This Next.js + TypeScript app reads those files directly, so it needs no backend and is hosted on Vercel. Code and
+              notebooks: github.com/Yosef392/FireBridge.
+            </p>
           </CardContent>
         </Card>
       </section>
@@ -162,9 +164,9 @@ export default function AboutPage() {
               ))}
             </ul>
             <div className="mt-4">
-              <Notice>
-                This application is a hackathon research prototype. All data currently shown is illustrative. It is not an
-                operational fire-warning system — always follow official guidance from local fire and emergency authorities.
+              <Notice tone="info">
+                This application is a hackathon research prototype built on NASA FIRMS data. It is not an operational fire-warning
+                system — always follow official guidance from local fire and emergency authorities.
               </Notice>
             </div>
           </CardContent>

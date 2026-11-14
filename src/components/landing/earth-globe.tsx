@@ -5,11 +5,21 @@ import { geoGraticule10, geoOrthographic, geoPath, geoDistance } from "d3-geo";
 import { feature } from "topojson-client";
 import type { Topology, GeometryCollection } from "topojson-specification";
 import landTopo from "world-atlas/land-110m.json";
-import { REGIONS } from "@/data/demo/regions";
+
+/** Centres and sizes of the 7 FireBridge study regions (from public/data/regions.json). */
+const STUDY_REGIONS = [
+  { center: [10.5, -9.2] as [number, number], spread: [4.0, 3.2] as [number, number] },
+  { center: [40.1, -7.9] as [number, number], spread: [1.8, 2.2] as [number, number] },
+  { center: [62.0, -117.5] as [number, number], spread: [4.0, 15.0] as [number, number] },
+  { center: [-32.85, 147.3] as [number, number], spread: [9.5, 12.8] as [number, number] },
+  { center: [-16.75, -56.6] as [number, number], spread: [2.5, 3.2] as [number, number] },
+  { center: [-1.35, 113.3] as [number, number], spread: [4.5, 5.2] as [number, number] },
+  { center: [30.925, 31.4] as [number, number], spread: [1.45, 1.8] as [number, number] },
+];
 
 /**
- * Decorative rotating Earth with glowing hotspot clusters.
- * Hotspot positions are the demo regions — purely illustrative.
+ * Decorative rotating Earth with glowing clusters at the 7 study regions
+ * (the sparks inside each region are decorative, not individual fires).
  */
 
 type Spark = { lon: number; lat: number; r: number; phase: number; hot: boolean };
@@ -18,11 +28,11 @@ function makeSparks(): Spark[] {
   let seed = 7;
   const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
   const out: Spark[] = [];
-  for (const reg of REGIONS) {
+  for (const reg of STUDY_REGIONS) {
     for (let i = 0; i < 14; i++) {
       out.push({
-        lat: reg.center[0] + (rand() - 0.5) * 9,
-        lon: reg.center[1] + (rand() - 0.5) * 12,
+        lat: reg.center[0] + (rand() - 0.5) * Math.max(2, reg.spread[0]),
+        lon: reg.center[1] + (rand() - 0.5) * Math.max(2, reg.spread[1]),
         r: 0.6 + rand() * 1.8,
         phase: rand() * Math.PI * 2,
         hot: rand() > 0.55,

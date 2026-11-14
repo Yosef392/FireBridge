@@ -1,244 +1,231 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { Satellite } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { Segmented } from "@/components/ui/segmented";
-import { ChartCard, ChartSkeleton, DemoBadge, EmptyState, ErrorState, Notice, PageHeader, RiskBadge } from "@/components/dashboard/primitives";
-import { FrpHistogram, MonthByYearLines, RegionBars, SeasonalBars, SourceLegend, YearTrend } from "@/components/charts/charts";
-import { useDetections } from "@/hooks/use-fire-data";
-import { useFilters } from "@/context/filters";
-import { byRegion, bySeason, byYear, frpHistogram, frpSummary, monthByYear } from "@/lib/analytics";
-import { formatRange } from "@/lib/dates";
-import { riskFromFrp } from "@/lib/risk";
-import { fmtInt, fmtPct } from "@/lib/utils";
+import { ChartCard, ChartSkeleton, ErrorState, Notice, PageHeader } from "@/components/dashboard/primitives";
+import { RegionLines, monthLabel, regionColor } from "@/components/charts/region-charts";
+import { useAsync } from "@/hooks/use-async";
+import { fetchAllCalendars, regionLabel, seasonalProfile } from "@/lib/harmonized";
+import { fmtInt } from "@/lib/utils";
 
-type RegionMetric = "count" | "avgFrp" | "highRiskShare";
+const VIIRS_FROM = 2013;
 
 export default function AnalyticsPage() {
-  const { filters, setFilter, reset } = useFilters();
-  const { status, data, error, retry } = useDetections();
-  const [trendMetric, setTrendMetric] = useState<"count" | "avgFrp">("count");
-  const [regionMetric, setRegionMetric] = useState<RegionMetric>("count");
-  const [seasonMetric, setSeasonMetric] = useState<"count" | "avgFrp">("count");
-  const [dayNight, setDayNight] = useState<"all" | "D" | "N">("all");
+  const data = useAsync((s) => fetchAllCalendars(VIIRS_FROM, s), []);
+  const [focus, setFocus] = useState<string | null>(null);
+  const [seasonAlign, setSeasonAlign] = useState<"calendar" | "local">("calendar");
 
   const view = useMemo(() => {
-    if (!data) return null;
-    const list = dayNight === "all" ? data.detections : data.detections.filter((d) => d.daynight === dayNight);
-    return {
-      list,
-      years: byYear(list),
-      mby: monthByYear(list),
-      seasons: bySeason(list),
-      hist: frpHistogram(list),
-      frp: frpSummary(list),
-      regions: byRegion(list),
-      empty: list.length === 0,
-    };
-  }, [data, dayNight]);
+    if (!data.data) return null;
+    const regions = data.data;
+    const series = regions.map((r) => ({ id: r.region.id, label: regionLabel(r.region) }));
 
-  const body = (height: number, node: React.ReactNode) => {
-    if (status === "error" && !data) return <ErrorState error={error!} onRetry={retry} height={height} />;
-    if (!view) return <ChartSkeleton height={height} />;
-    if (view.empty)
-      return (
-        <EmptyState
-          height={height}
-          action={
-            <Button size="sm" variant="outline" onClick={reset}>
-              Reset filters
-            </Button>
-          }
-        />
-      );
-    return node;
-  };
+    // 1. Seasonal profile: share of the year's fires per month
+    const profiles = regions.map((r) => seasonalProfile(r.months));
+    const seasonRows = Array.from({ length: 12 }, (_, i) => {
+      const row: Record<string, number | string | null> = { month: String(i + 1) };
+      regions.forEach((r, k) => {
+        // "local": shift southern-hemisphere regions by six months so both hemispheres share a season axis
+        const idx = seasonAlign === "local" && r.region.hemisphere === "S" ? (i + 6) % 12 : i;
+        row[r.region.id] = profiles[k][idx] * 100;
+      });
+      return row;
+    });
+
+    // 2. VIIRS ÷ MODIS ratio per year, where both sensors exist
+    const years = [...new Set(regions.flatMap((r) => r.years.map((y) => y.year)))].filter((y) => y >= VIIRS_FROM).sort();
+    const ratioRows = years.map((y) => {
+      const row: Record<string, number | null> = { year: y };
+      for (const r of regions) {
+        const yr = r.years.find((x) => x.year === y);
+        row[r.region.id] = yr && yr.viirs && yr.modis > 0 ? yr.viirs / yr.modis : null;
+      }
+      return row;
+    });
+
+    // 3. Each year relative to the region's own average (harmonized record)
+    const allYears = [...new Set(regions.flatMap((r) => r.years.map((y) => y.year)))].sort();
+    const means = regions.map((r) => r.years.reduce((s, y) => s + y.calendar, 0) / Math.max(1, r.years.length));
+    const indexRows = allYears.map((y) => {
+      const row: Record<string, number | null> = { year: y };
+      regions.forEach((r, k) => {
+        const v = r.years.find((x) => x.year === y)?.calendar;
+        row[r.region.id] = v != null && means[k] > 0 && v > 0 ? (v / means[k]) * 100 : null;
+      });
+      return row;
+    });
+
+    // 4. Summary table
+    const table = regions.map((r, k) => {
+      const ratios = ratioRows.map((row) => row[r.region.id]).filter((v): v is number => v != null);
+      const ratio = ratios.reduce((s, v) => s + v, 0) / Math.max(1, ratios.length);
+      const vals = r.years.map((y) => y.calendar);
+      const sd = Math.sqrt(vals.reduce((s, v) => s + (v - means[k]) ** 2, 0) / Math.max(1, vals.length - 1));
+      const p = profiles[k];
+      const top3 = [...p.keys()].sort((a, b) => p[b] - p[a]).slice(0, 3);
+      return {
+        k,
+        region: r.region,
+        ratio,
+        ratioMin: Math.min(...ratios),
+        ratioMax: Math.max(...ratios),
+        cv: means[k] > 0 ? (sd / means[k]) * 100 : 0,
+        peakShare: top3.reduce((s, i) => s + p[i], 0) * 100,
+        peakMonths: top3.sort((a, b) => a - b).map((i) => monthLabel(i + 1)),
+        mean: means[k],
+      };
+    });
+
+    return { series, seasonRows, ratioRows, indexRows, table };
+  }, [data.data, seasonAlign]);
 
   return (
     <div className="space-y-6">
       <PageHeader
         eyebrow="Analytics"
-        title="Historical patterns & distributions"
-        description="Explore how illustrative fire activity varies by year, month, season, intensity and geography. All charts respond to the top-bar filters and the local controls on each card."
+        title="How the regions differ"
+        description="Seasons, sensor differences and year-to-year swings across the 7 study regions, all from the harmonized NASA FIRMS record."
         actions={
-          <>
-            <DemoBadge />
-            <Segmented
-              ariaLabel="Day or night detections"
-              value={dayNight}
-              onChange={setDayNight}
-              options={[
-                { value: "all", label: "Day + Night" },
-                { value: "D", label: "Day" },
-                { value: "N", label: "Night" },
-              ]}
-            />
-          </>
+          <Badge variant="success">
+            <Satellite className="size-3" aria-hidden /> NASA FIRMS data
+          </Badge>
         }
       />
 
-      {data && (
-        <p className="text-xs text-muted">
-          Window: <span className="text-foreground">{formatRange(data.range)}</span> ·{" "}
-          <span className="font-mono text-foreground">{view ? fmtInt(view.list.length) : "—"}</span> detections analysed
-          {status === "loading" && <span className="ml-2 text-fire-soft">· updating…</span>}
-        </p>
-      )}
+      {data.error && <ErrorState error={data.error} onRetry={data.retry} height={160} />}
+
+      <ChartCard
+        title="VIIRS sees more fires than MODIS, but by how much depends on the place"
+        description="Yearly VIIRS detections ÷ MODIS detections, 2013–2024 (log scale). This is why one global conversion factor can't harmonize the record: small agricultural fires (Nile Delta) are mostly invisible to MODIS, big forest fires (Canada, Portugal) are not."
+      >
+        {view ? (
+          <RegionLines
+            rows={view.ratioRows}
+            series={view.series}
+            xKey="year"
+            log
+            highlight={focus}
+            height={320}
+            valueFormatter={(v) => (Number.isFinite(v) ? `${v.toFixed(2)}×` : "—")}
+            yFormatter={(v) => `${v}×`}
+          />
+        ) : (
+          <ChartSkeleton height={320} />
+        )}
+      </ChartCard>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <ChartCard
-          title="Historical wildfire trend"
-          description="Annual totals within the selected window — choose “Full archive” for the 2020–2024 trend"
+          title="Fire season"
+          description={
+            seasonAlign === "local"
+              ? "Southern-hemisphere regions shifted by six months, so the axis means the same season everywhere (labels are northern months)."
+              : "Average share of each year's fires that falls in each month (harmonized record)."
+          }
           actions={
             <Segmented
-              ariaLabel="Trend metric"
-              value={trendMetric}
-              onChange={setTrendMetric}
+              ariaLabel="Month alignment"
+              value={seasonAlign}
+              onChange={setSeasonAlign}
               options={[
-                { value: "count", label: "Detections" },
-                { value: "avgFrp", label: "Mean FRP" },
+                { value: "calendar", label: "Calendar months" },
+                { value: "local", label: "Align hemispheres" },
               ]}
             />
           }
         >
-          {trendMetric === "count" && (
-            <div className="mb-3">
-              <SourceLegend source={filters.source} />
-            </div>
-          )}
-          {body(280, view && <YearTrend data={view.years} metric={trendMetric} source={filters.source} />)}
-          {view && view.years.length < 3 && filters.preset !== "all" && (
-            <div className="mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-surface/50 px-3 py-2 text-xs text-muted">
-              Only {view.years.length} year{view.years.length === 1 ? "" : "s"} in this window.
-              <Button size="sm" variant="outline" onClick={() => setFilter("preset", "all")}>
-                Show full 2020–2024 archive
-              </Button>
-            </div>
-          )}
-        </ChartCard>
-
-        <ChartCard title="Monthly comparison by year" description="Each line is one year on a shared Jan–Dec axis, revealing shifts in fire-season timing">
-          {body(300, view && <MonthByYearLines rows={view.mby.rows} years={view.mby.years} height={280} />)}
-        </ChartCard>
-      </div>
-
-      <div className="grid grid-cols-1 gap-6 xl:grid-cols-5">
-        <ChartCard
-          className="xl:col-span-3"
-          title="FRP distribution"
-          description="How many detections fall into each Fire Radiative Power band. VIIRS skews lower because its smaller pixels resolve smaller fires."
-          footer={
-            view && !view.empty ? (
-              <div className="flex flex-wrap gap-x-5 gap-y-1">
-                <span>
-                  Median <span className="font-mono text-muted">{view.frp.median.toFixed(1)} MW</span>
-                </span>
-                <span>
-                  P90 <span className="font-mono text-muted">{view.frp.p90.toFixed(1)} MW</span>
-                </span>
-                <span>
-                  P99 <span className="font-mono text-muted">{view.frp.p99.toFixed(1)} MW</span>
-                </span>
-                <span>
-                  Max <span className="font-mono text-muted">{view.frp.max.toFixed(1)} MW</span> <RiskBadge risk={riskFromFrp(view.frp.max)} className="ml-1" />
-                </span>
-              </div>
-            ) : undefined
-          }
-        >
-          <div className="mb-3">
-            <SourceLegend source={filters.source} />
-          </div>
-          {body(280, view && <FrpHistogram data={view.hist} source={filters.source} />)}
-        </ChartCard>
-
-        <ChartCard
-          className="xl:col-span-2"
-          title="Seasonal comparison"
-          description="Southern-hemisphere regions are re-mapped so “Summer” always means local summer"
-          actions={
-            <Segmented
-              ariaLabel="Seasonal metric"
-              value={seasonMetric}
-              onChange={setSeasonMetric}
-              options={[
-                { value: "count", label: "Count" },
-                { value: "avgFrp", label: "Mean FRP" },
-              ]}
+          {view ? (
+            <RegionLines
+              rows={view.seasonRows}
+              series={view.series}
+              xKey="month"
+              highlight={focus}
+              height={300}
+              xFormatter={(m) => monthLabel(m)}
+              valueFormatter={(v) => `${v.toFixed(1)}%`}
+              yFormatter={(v) => `${v}%`}
             />
-          }
+          ) : (
+            <ChartSkeleton height={300} />
+          )}
+        </ChartCard>
+
+        <ChartCard
+          title="Good and bad years"
+          description="Each year's detections as a share of the region's 2001–2024 average (100 = average year, log scale)."
         >
-          {body(280, view && <SeasonalBars data={view.seasons} metric={seasonMetric} height={280} />)}
+          {view ? (
+            <RegionLines
+              rows={view.indexRows}
+              series={view.series}
+              xKey="year"
+              log
+              highlight={focus}
+              height={300}
+              markX={VIIRS_FROM}
+              valueFormatter={(v) => (Number.isFinite(v) ? `${v.toFixed(0)}` : "—")}
+              yFormatter={(v) => `${v}`}
+            />
+          ) : (
+            <ChartSkeleton height={300} />
+          )}
         </ChartCard>
       </div>
 
-      <ChartCard
-        title="Geographic hotspot comparison"
-        description="Compare monitored regions. Click a bar to filter the whole dashboard to that region."
-        actions={
-          <Segmented
-            ariaLabel="Region metric"
-            value={regionMetric}
-            onChange={setRegionMetric}
-            options={[
-              { value: "count", label: "Detections" },
-              { value: "avgFrp", label: "Mean FRP" },
-              { value: "highRiskShare", label: "High/Extreme %" },
-            ]}
-          />
-        }
-      >
-        <div className="grid grid-cols-1 gap-6 2xl:grid-cols-2">
-          {body(
-            320,
-            view && (
-              <RegionBars
-                data={view.regions}
-                metric={regionMetric}
-                selectedId={filters.regionId === "ALL" ? undefined : filters.regionId}
-                onSelect={(id) => setFilter("regionId", filters.regionId === id ? "ALL" : id)}
-              />
-            ),
-          )}
-          {view && !view.empty && (
-            <div className="scrollbar-thin overflow-x-auto">
-              <table className="w-full min-w-[560px] text-left text-xs">
-                <caption className="sr-only">Regional comparison table</caption>
-                <thead>
-                  <tr className="border-b border-border text-[10.5px] uppercase tracking-[0.12em] text-subtle">
-                    <th scope="col" className="py-2.5 pr-3 font-medium">Region</th>
-                    <th scope="col" className="py-2.5 pr-3 text-right font-medium">Detections</th>
-                    <th scope="col" className="py-2.5 pr-3 text-right font-medium">Share</th>
-                    <th scope="col" className="py-2.5 pr-3 text-right font-medium">Mean FRP</th>
-                    <th scope="col" className="py-2.5 pr-3 text-right font-medium">Max FRP</th>
-                    <th scope="col" className="py-2.5 text-right font-medium">Peak month</th>
+      <ChartCard title="Region profiles" description="Hover a row to highlight that region in the charts.">
+        {view ? (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[720px] text-left text-xs">
+              <thead className="text-subtle">
+                <tr className="border-b border-border">
+                  <th className="py-2 pr-3 font-medium">Region</th>
+                  <th className="py-2 pr-3 text-right font-medium">VIIRS ÷ MODIS</th>
+                  <th className="py-2 pr-3 text-right font-medium">Range by year</th>
+                  <th className="py-2 pr-3 font-medium">Main fire months</th>
+                  <th className="py-2 pr-3 text-right font-medium">Share in those 3 months</th>
+                  <th className="py-2 pr-3 text-right font-medium">Average year</th>
+                  <th className="py-2 text-right font-medium">Year-to-year swing</th>
+                </tr>
+              </thead>
+              <tbody>
+                {view.table.map((t) => (
+                  <tr
+                    key={t.region.id}
+                    className="border-b border-border/60 transition-colors hover:bg-surface-2/60"
+                    onMouseEnter={() => setFocus(t.region.id)}
+                    onMouseLeave={() => setFocus(null)}
+                  >
+                    <td className="py-2.5 pr-3">
+                      <span className="flex items-center gap-2 font-medium text-foreground">
+                        <span className="size-2 rounded-full" style={{ background: regionColor(t.k) }} aria-hidden />
+                        {regionLabel(t.region)}
+                      </span>
+                    </td>
+                    <td className="py-2.5 pr-3 text-right font-mono tabular-nums">{t.ratio.toFixed(1)}×</td>
+                    <td className="py-2.5 pr-3 text-right font-mono tabular-nums text-muted">
+                      {t.ratioMin.toFixed(1)}–{t.ratioMax.toFixed(1)}×
+                    </td>
+                    <td className="py-2.5 pr-3 text-muted">{t.peakMonths.join(", ")}</td>
+                    <td className="py-2.5 pr-3 text-right font-mono tabular-nums">{t.peakShare.toFixed(0)}%</td>
+                    <td className="py-2.5 pr-3 text-right font-mono tabular-nums">{fmtInt(t.mean)}</td>
+                    <td className="py-2.5 text-right font-mono tabular-nums text-muted">±{t.cv.toFixed(0)}%</td>
                   </tr>
-                </thead>
-                <tbody>
-                  {view.regions.map((r) => (
-                    <tr key={r.regionId} className="border-b border-border/60 last:border-0 hover:bg-surface-2/50">
-                      <td className="py-2.5 pr-3">
-                        <span className="block font-medium">{r.name}</span>
-                        <span className="text-[10.5px] text-subtle">{r.country}</span>
-                      </td>
-                      <td className="py-2.5 pr-3 text-right font-mono tabular-nums">{fmtInt(r.count)}</td>
-                      <td className="py-2.5 pr-3 text-right font-mono tabular-nums text-muted">{fmtPct(r.share, 1)}</td>
-                      <td className="py-2.5 pr-3 text-right font-mono tabular-nums">{r.avgFrp.toFixed(1)}</td>
-                      <td className="py-2.5 pr-3 text-right font-mono tabular-nums text-muted">{r.maxFrp.toFixed(0)}</td>
-                      <td className="py-2.5 text-right">{r.peakMonth}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <ChartSkeleton height={240} />
+        )}
+        <div className="mt-4">
+          <Notice tone="info">
+            “Year-to-year swing” is the standard deviation of yearly totals as a share of the average. Average year is on the VIIRS
+            scale, 2001–2024.
+          </Notice>
         </div>
       </ChartCard>
-
-      <Notice tone="info">
-        Statistics describe the illustrative archive only. When the FastAPI backend is connected, the same charts render
-        aggregates computed from the team’s processed MODIS/VIIRS dataset.
-      </Notice>
     </div>
   );
 }

@@ -144,6 +144,8 @@ export interface YearRow {
   modis: number;
   viirs: number | null;
   harmonized: number;
+  /** The record we show: real VIIRS from viirsFrom on, the model estimate before. */
+  calendar: number;
   low: number;
   high: number;
   /** Naive join: MODIS before VIIRS, VIIRS after. */
@@ -176,6 +178,7 @@ export function yearlyRows(months: CalendarMonth[], viirsFrom: number): YearRow[
         modis,
         viirs,
         harmonized: sum(list, (m) => m.harmonized),
+        calendar: sum(list, (m) => m.calendar),
         low,
         high,
         raw: year < viirsFrom ? modis : viirs,
@@ -183,3 +186,68 @@ export function yearlyRows(months: CalendarMonth[], viirsFrom: number): YearRow[
       };
     });
 }
+
+/* ---------------------------------------------------------------- whole-dataset helpers */
+
+export interface RegionCalendar {
+  region: HarmonizedRegion;
+  months: CalendarMonth[];
+  years: YearRow[];
+}
+
+/** Region list + every region's calendar (about 300 kB in total). */
+export async function fetchAllCalendars(viirsFrom: number, signal?: AbortSignal): Promise<RegionCalendar[]> {
+  const regions = await fetchHarmonizedRegions(signal);
+  return Promise.all(
+    regions.map(async (region) => {
+      const { months } = await fetchCalendar(region.id, signal);
+      return { region, months, years: yearlyRows(months, viirsFrom) };
+    }),
+  );
+}
+
+export const regionLabel = (r: Pick<HarmonizedRegion, "name" | "country">) => `${r.name}, ${r.country}`;
+
+/** Average share of the year's fires that falls in each calendar month (harmonized record, whole years only). */
+export function seasonalProfile(months: CalendarMonth[]): number[] {
+  const byYear = new Map<string, CalendarMonth[]>();
+  for (const m of months) {
+    const y = m.month.slice(0, 4);
+    const l = byYear.get(y);
+    if (l) l.push(m);
+    else byYear.set(y, [m]);
+  }
+  const shares = Array(12).fill(0);
+  let n = 0;
+  for (const list of byYear.values()) {
+    if (list.length !== 12) continue;
+    const total = list.reduce((s, m) => s + (m.calendar ?? 0), 0);
+    if (total <= 0) continue;
+    for (const m of list) shares[Number(m.month.slice(5, 7)) - 1] += (m.calendar ?? 0) / total;
+    n++;
+  }
+  return shares.map((s) => (n ? s / n : 0));
+}
+
+/* ---------------------------------------------------------------- map cells */
+
+export interface CellIndex {
+  regionId: string;
+  gridKm: number;
+  /** Rectangle per cell: [latMin, lonMin, latMax, lonMax] */
+  cells: [number, number, number, number][];
+}
+
+/** One cell-month: [cell index, harmonized, MODIS count, VIIRS count (null before VIIRS)] */
+export type CellValue = [number, number, number, number | null];
+
+export interface CellYear {
+  regionId: string;
+  year: number;
+  /** Keyed by month "01".."12"; only cells with any activity are listed. */
+  months: Record<string, CellValue[]>;
+}
+
+export const fetchCellIndex = (regionId: string, signal?: AbortSignal) => getStatic<CellIndex>(`cells/${regionId}/index.json`, signal);
+export const fetchCellYear = (regionId: string, year: number, signal?: AbortSignal) =>
+  getStatic<CellYear>(`cells/${regionId}/${year}.json`, signal);

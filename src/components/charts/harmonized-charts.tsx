@@ -18,7 +18,7 @@ export const HARMONIZED_COLORS = {
 
 /* ---------------------------------------------------------------- calendar heatmap */
 
-const RAMP = ["#0e1d33", "#2b1f45", "#5c2346", "#932c3c", "#c84a2c", "#ee7a2a", "#f7b24a", "#ffe8a3"];
+export const RAMP = ["#0e1d33", "#2b1f45", "#5c2346", "#932c3c", "#c84a2c", "#ee7a2a", "#f7b24a", "#ffe8a3"];
 
 function hexToRgb(h: string) {
   const n = parseInt(h.slice(1), 16);
@@ -26,7 +26,7 @@ function hexToRgb(h: string) {
 }
 
 /** t in [0, 1] → colour on the fire ramp. */
-function rampColor(t: number) {
+export function rampColor(t: number) {
   const x = Math.min(1, Math.max(0, t)) * (RAMP.length - 1);
   const i = Math.min(RAMP.length - 2, Math.floor(x));
   const f = x - i;

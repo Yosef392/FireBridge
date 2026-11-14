@@ -20,3 +20,5 @@ export const PredictionMap = dynamic(() => import("./leaflet-map").then((m) => m
 });
 
 export { MapLoading };
+
+export const CellMap = dynamic(() => import("./cell-map"), { ssr: false, loading: () => <MapLoading /> });
