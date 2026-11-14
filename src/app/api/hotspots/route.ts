@@ -17,6 +17,9 @@ const SATELLITE: Record<(typeof SOURCES)[number], string> = {
   VIIRS_NOAA21_NRT: "NOAA-21",
 };
 const REVALIDATE_S = 900;
+/** FIRMS Area API limit per call (it was 10 days; FIRMS now answers "Expects [1..5]"). */
+const MAX_DAYS_PER_CALL = 5;
+const DAY_MS = 86_400_000;
 /** Larger boxes would return too many points to draw; the study regions are all well below this. */
 const MAX_AREA_DEG2 = 400;
 
@@ -82,17 +85,33 @@ export async function GET(req: NextRequest) {
     w >= -180 && e <= 180 && s >= -90 && n <= 90 && w < e && s < n;
   if (!valid) return NextResponse.json({ error: "bbox must be west,south,east,north in degrees." }, { status: 400 });
   if ((e - w) * (n - s) > MAX_AREA_DEG2) return NextResponse.json({ error: "Area too large for live hotspots." }, { status: 400 });
-  if (!(days >= 1 && days <= 10)) return NextResponse.json({ error: "days must be 1–10 (FIRMS limit)." }, { status: 400 });
+  if (!(days >= 1 && days <= 10)) return NextResponse.json({ error: "days must be 1–10." }, { status: 400 });
+
+  // FIRMS answers at most MAX_DAYS_PER_CALL days per request ("Invalid day range. Expects [1..5]"),
+  // so longer windows are split into dated calls: e.g. 7 days = 5 days from 6 days ago + the last 2.
+  const today = Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate());
+  const windows: { start: string; n: number }[] = [];
+  for (let left = days, start = today - (days - 1) * DAY_MS; left > 0; ) {
+    const n = Math.min(MAX_DAYS_PER_CALL, left);
+    windows.push({ start: new Date(start).toISOString().slice(0, 10), n });
+    start += n * DAY_MS;
+    left -= n;
+  }
 
   const area = [w, s, e, n].map((v) => v.toFixed(4)).join(",");
   const results = await Promise.allSettled(
     SOURCES.map(async (src) => {
-      const url = `https://firms.modaps.eosdis.nasa.gov/api/area/csv/${key}/${src}/${area}/${days}`;
-      const res = await fetch(url, { next: { revalidate: REVALIDATE_S } });
-      const text = await res.text();
-      // FIRMS answers errors (bad key, limit reached) with HTTP 200 and a plain-text message.
-      if (!res.ok || !text.startsWith("latitude")) throw new Error(`${src}: ${text.slice(0, 120)}`);
-      return parseCsv(text, SATELLITE[src]);
+      const parts = await Promise.all(
+        windows.map(async ({ start, n }) => {
+          const url = `https://firms.modaps.eosdis.nasa.gov/api/area/csv/${key}/${src}/${area}/${n}/${start}`;
+          const res = await fetch(url, { next: { revalidate: REVALIDATE_S } });
+          const text = await res.text();
+          // FIRMS answers errors (bad key, limit reached, bad range) with HTTP 200 and a plain-text message.
+          if (!res.ok || !text.startsWith("latitude")) throw new Error(`${src}: ${text.slice(0, 120)}`);
+          return parseCsv(text, SATELLITE[src]);
+        }),
+      );
+      return parts.flat();
     }),
   );
 

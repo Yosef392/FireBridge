@@ -597,3 +597,125 @@ export async function fetchCoverage(signal?: AbortSignal): Promise<Coverage> {
   const cals = await fetchAllCalendars(report?.viirs_from ?? 2013, signal);
   return coverageOf(cals, report);
 }
+
+/* ---------------------------------------------------------------- drawn areas (rectangle, polygon, circle) */
+
+export type AreaShape =
+  | { kind: "rect"; box: AreaBox }
+  /** Vertices as [lat, lon], not closed (the last point joins the first). */
+  | { kind: "polygon"; points: [number, number][] }
+  | { kind: "circle"; center: [number, number]; radiusKm: number };
+
+const EARTH_KM = 6371.0088;
+const rad = (d: number) => (d * Math.PI) / 180;
+
+export function distanceKm(lat1: number, lon1: number, lat2: number, lon2: number) {
+  const a = Math.sin(rad(lat2 - lat1) / 2) ** 2 + Math.cos(rad(lat1)) * Math.cos(rad(lat2)) * Math.sin(rad(lon2 - lon1) / 2) ** 2;
+  return 2 * EARTH_KM * Math.asin(Math.min(1, Math.sqrt(a)));
+}
+
+/** Is the point inside the shape? (Polygons: even-odd ray casting in lat/lon, fine at regional scale.) */
+export function inShape(shape: AreaShape, lat: number, lon: number): boolean {
+  switch (shape.kind) {
+    case "rect": {
+      const [a, b, c, d] = shape.box;
+      return lat >= a && lat <= c && lon >= b && lon <= d;
+    }
+    case "circle":
+      return distanceKm(shape.center[0], shape.center[1], lat, lon) <= shape.radiusKm;
+    case "polygon": {
+      const p = shape.points;
+      let inside = false;
+      for (let i = 0, j = p.length - 1; i < p.length; j = i++) {
+        const [yi, xi] = p[i];
+        const [yj, xj] = p[j];
+        if (yi > lat !== yj > lat && lon < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) inside = !inside;
+      }
+      return inside;
+    }
+  }
+}
+
+/** Bounding box [latMin, lonMin, latMax, lonMax]. */
+export function shapeBounds(shape: AreaShape): AreaBox {
+  if (shape.kind === "rect") return shape.box;
+  if (shape.kind === "circle") {
+    const [lat, lon] = shape.center;
+    const dLat = shape.radiusKm / 111.32;
+    const dLon = shape.radiusKm / (111.32 * Math.max(0.01, Math.cos(rad(lat))));
+    return [lat - dLat, lon - dLon, lat + dLat, lon + dLon];
+  }
+  const lats = shape.points.map((p) => p[0]);
+  const lons = shape.points.map((p) => p[1]);
+  return [Math.min(...lats), Math.min(...lons), Math.max(...lats), Math.max(...lons)];
+}
+
+export function shapeLabel(shape: AreaShape): string {
+  const f = (v: number) => v.toFixed(2);
+  if (shape.kind === "rect") return `Box ${f(shape.box[0])}…${f(shape.box[2])}°N, ${f(shape.box[1])}…${f(shape.box[3])}°E`;
+  if (shape.kind === "circle") return `${shape.radiusKm.toFixed(0)} km around ${f(shape.center[0])}°N, ${f(shape.center[1])}°E`;
+  return `Polygon, ${shape.points.length} points`;
+}
+
+/** Cells whose centre is inside the shape. */
+export function cellsInShape(index: CellIndex, shape: AreaShape): Set<number> {
+  const [a, b, c, d] = shapeBounds(shape);
+  const out = new Set<number>();
+  index.cells.forEach((cb, i) => {
+    const lat = (cb[0] + cb[2]) / 2;
+    const lon = (cb[1] + cb[3]) / 2;
+    if (lat >= a && lat <= c && lon >= b && lon <= d && inShape(shape, lat, lon)) out.add(i);
+  });
+  return out;
+}
+
+/** Do two boxes [latMin, lonMin, latMax, lonMax] overlap? */
+export const boxesOverlap = (p: AreaBox, q: AreaBox) => p[0] <= q[2] && q[0] <= p[2] && p[1] <= q[3] && q[1] <= p[3];
+
+/** Sum several monthly calendars (e.g. one drawn area across several regions) month by month. */
+export function sumCalendars(parts: CalendarMonth[][]): CalendarMonth[] {
+  const by = new Map<string, CalendarMonth>();
+  for (const months of parts)
+    for (const m of months) {
+      const t = by.get(m.month);
+      if (!t) {
+        by.set(m.month, { ...m });
+        continue;
+      }
+      t.modis += m.modis;
+      t.terra += m.terra;
+      t.aqua += m.aqua;
+      t.viirs = t.viirs == null && m.viirs == null ? null : (t.viirs ?? 0) + (m.viirs ?? 0);
+      t.harmonized = (t.harmonized ?? 0) + (m.harmonized ?? 0);
+      t.calendar = (t.calendar ?? 0) + (m.calendar ?? 0);
+    }
+  return [...by.values()].sort((a, b) => a.month.localeCompare(b.month));
+}
+
+/** Area <-> URL (?area=...), so a drawn area can be shared as a link. */
+export function shapeToParam(s: AreaShape): string {
+  const f = (v: number) => v.toFixed(4).replace(/\.?0+$/, "");
+  if (s.kind === "rect") return `rect:${s.box.map(f).join(",")}`;
+  if (s.kind === "circle") return `circle:${f(s.center[0])},${f(s.center[1])},${f(s.radiusKm)}`;
+  return `poly:${s.points.map((p) => `${f(p[0])},${f(p[1])}`).join(";")}`;
+}
+
+export function shapeFromParam(v: string | null): AreaShape | null {
+  if (!v) return null;
+  const [kind, rest = ""] = v.split(":");
+  const nums = (t: string) => t.split(",").map(Number);
+  const ok = (a: number[], n: number) => a.length === n && a.every(Number.isFinite);
+  if (kind === "rect") {
+    const b = nums(rest);
+    return ok(b, 4) && b[0] < b[2] && b[1] < b[3] ? { kind: "rect", box: b as AreaBox } : null;
+  }
+  if (kind === "circle") {
+    const c = nums(rest);
+    return ok(c, 3) && c[2] > 0 ? { kind: "circle", center: [c[0], c[1]], radiusKm: c[2] } : null;
+  }
+  if (kind === "poly") {
+    const pts = rest.split(";").map(nums);
+    return pts.length >= 3 && pts.every((p) => ok(p, 2)) ? { kind: "polygon", points: pts as [number, number][] } : null;
+  }
+  return null;
+}
