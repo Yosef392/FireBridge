@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import L from "leaflet";
 import { useMap } from "react-leaflet";
 import { rampColor, type RampName } from "@/lib/ramp";
+import { useTheme } from "@/lib/theme";
 import { fmtInt } from "@/lib/utils";
 
 export interface CanvasCell {
@@ -52,8 +53,9 @@ export function CellCanvas({
   highlight?: Set<string>;
 }) {
   const map = useMap();
-  const state = useRef({ cells, max, ramp, highlight });
-  state.current = { cells, max, ramp, highlight };
+  const theme = useTheme();
+  const state = useRef({ cells, max, ramp, highlight, theme });
+  state.current = { cells, max, ramp, highlight, theme };
   const redrawRef = useRef<() => void>(() => {});
 
   useEffect(() => {
@@ -65,7 +67,7 @@ export function CellCanvas({
     let lastCells = state.current.cells;
 
     const redraw = () => {
-      const { cells: cs, max: mx, ramp: rp, highlight: hl } = state.current;
+      const { cells: cs, max: mx, ramp: rp, highlight: hl, theme: th } = state.current;
       if (cs !== lastCells) {
         find = bucketIndex(cs);
         lastCells = cs;
@@ -98,13 +100,14 @@ export function CellCanvas({
           h = 2;
         }
         if (x > size.x || y > size.y || x + w < 0 || y + h < 0) continue;
-        ctx.fillStyle = rampColor(0.15 + 0.85 * t(c.value), rp);
+        ctx.fillStyle = rampColor(0.15 + 0.85 * t(c.value), rp, th);
         ctx.fillRect(x, y, w, h);
         if (hl?.has(c.key)) outlined.push([x, y, w, h]);
       }
       if (outlined.length) {
         ctx.globalAlpha = 0.95;
-        ctx.strokeStyle = "#ffffff";
+        // Outline of the cells a drawn area counts: white on the dark map, near-black on the light one.
+        ctx.strokeStyle = th === "light" ? "#0d1b2e" : "#ffffff";
         ctx.lineWidth = 1;
         for (const [x, y, w, h] of outlined) ctx.strokeRect(x + 0.5, y + 0.5, Math.max(1, w - 1), Math.max(1, h - 1));
       }
@@ -141,7 +144,7 @@ export function CellCanvas({
   // New data, colours or highlight: just repaint.
   useEffect(() => {
     redrawRef.current();
-  }, [cells, max, ramp, highlight]);
+  }, [cells, max, ramp, highlight, theme]);
 
   return null;
 }

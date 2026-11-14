@@ -150,7 +150,7 @@ export default function ModelPage() {
                 {r.jump_check.map((j) => (
                   <tr key={j.area} className="border-b border-border/60">
                     <td className="py-2 pr-3">{name(j.area)}</td>
-                    <td className="py-2 pr-3 text-right font-mono tabular-nums text-[#e9b949]">{fmtX(j.raw_jump)}</td>
+                    <td className="py-2 pr-3 text-right font-mono tabular-nums text-warn-fg">{fmtX(j.raw_jump)}</td>
                     <td className="py-2 pr-3 text-right font-mono tabular-nums text-muted">{fmtX(j.real_change)}</td>
                     <td className="py-2 text-right font-mono tabular-nums text-foreground">{fmtX(j.harmonized_jump)}</td>
                   </tr>
@@ -183,7 +183,7 @@ export default function ModelPage() {
                     <td
                       className={cn(
                         "py-2 text-right font-mono tabular-nums",
-                        l.main && Math.abs(l.main.total_bias) > 25 ? "text-[#ff8f92]" : "text-foreground",
+                        l.main && Math.abs(l.main.total_bias) > 25 ? "text-bad-fg" : "text-foreground",
                       )}
                     >
                       {l.main ? fmtPct(l.main.total_bias) : "—"}

@@ -2,7 +2,7 @@
 
 import { CartesianGrid, Line, LineChart, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ChartTooltip, Legend } from "@/components/dashboard/primitives";
-import { CHART, SERIES } from "@/lib/colors";
+import { SERIES, useChart } from "@/lib/colors";
 import { MONTH_LABELS } from "@/lib/dates";
 import { fmtCompact, fmtInt } from "@/lib/utils";
 
@@ -44,6 +44,7 @@ export function RegionLines({
   yFormatter?: (v: number) => string;
   yDomain?: [number | string, number | string];
 }) {
+  const CHART = useChart();
   return (
     <div>
       <div className="mb-3">
@@ -74,12 +75,13 @@ export function RegionLines({
             />
             <Tooltip
               content={<ChartTooltip valueFormatter={valueFormatter} labelFormatter={xFormatter} />}
-              cursor={{ stroke: "rgba(148,178,219,0.35)" }}
+              cursor={{ stroke: CHART.axis, strokeOpacity: 0.5 }}
             />
             {markX != null && (
               <ReferenceLine
                 x={markX}
-                stroke="rgba(231,238,248,0.45)"
+                stroke={CHART.foreground}
+              strokeOpacity={0.45}
                 strokeDasharray="4 4"
                 label={markLabel ? { value: markLabel, position: "insideTopLeft", fill: CHART.muted, fontSize: 11 } : undefined}
               />

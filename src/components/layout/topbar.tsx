@@ -11,6 +11,7 @@ import type { DatePreset, SourceFilter } from "@/lib/types";
 import { LogoMark } from "./logo";
 import { useIsRealDataPage } from "./data-source";
 import { useCoverage } from "@/hooks/use-coverage";
+import { ThemeToggle } from "./theme-toggle";
 import { fmtMonth } from "@/lib/harmonized";
 
 const CONTINENTS = [...new Set(REGIONS.map((r) => r.continent))];
@@ -126,6 +127,7 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
             <span className="text-[11px] font-medium">{real ? "NASA FIRMS (exported results)" : IS_DEMO ? "Illustrative archive" : "FastAPI backend"}</span>
             {demo && <DemoBadge className="hidden sm:inline-flex" />}
           </div>
+          <ThemeToggle />
         </div>
       </div>
     </header>

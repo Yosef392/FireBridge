@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ThemeToggle } from "@/components/layout/theme-toggle";
 import {
   Activity,
   ArrowRight,
@@ -67,11 +68,14 @@ export default function LandingPage() {
               </a>
             ))}
           </nav>
+          <div className="flex items-center gap-2">
+          <ThemeToggle />
           <Button asChild size="sm">
             <Link href="/dashboard">
               Dashboard <ArrowRight />
             </Link>
           </Button>
+          </div>
         </div>
       </header>
 
@@ -139,7 +143,7 @@ export default function LandingPage() {
                 <Radar className="size-3 text-fire" aria-hidden /> Harmonized · NSW
               </p>
               <p className="mt-1 flex items-center gap-2 text-sm font-medium">
-                Nov 2019 anomaly <span className="rounded-full bg-[#d23a78]/20 px-2 py-0.5 text-[11px] text-[#f3a6c6]">z 27</span>
+                Nov 2019 anomaly <span className="rounded-full bg-[#d23a78]/20 px-2 py-0.5 text-[11px] text-bad-fg">z 27</span>
               </p>
             </div>
             <p className="mt-2 text-center text-[11px] text-subtle">Globe markers show our study regions</p>
@@ -148,7 +152,7 @@ export default function LandingPage() {
       </section>
 
       {/* Overview / problem / solution */}
-      <section id="overview" className="scroll-mt-20 border-t border-border bg-[#081426]/60 py-20 md:py-28">
+      <section id="overview" className="scroll-mt-20 border-t border-border bg-sidebar/60 py-20 md:py-28">
         <div className="mx-auto max-w-7xl px-4 md:px-6">
           <SectionHeading
             eyebrow="Project overview"
@@ -157,7 +161,7 @@ export default function LandingPage() {
           />
           <div className="mt-14 grid grid-cols-1 gap-5 md:grid-cols-2">
             <div className="rounded-2xl border border-border bg-surface/60 p-7">
-              <span className="inline-flex size-10 items-center justify-center rounded-xl bg-ember/12 text-[#ff8f92]">
+              <span className="inline-flex size-10 items-center justify-center rounded-xl bg-ember/12 text-bad-fg">
                 <Flame className="size-5" aria-hidden />
               </span>
               <h3 className="mt-5 font-display text-xl font-semibold">The problem</h3>
@@ -204,7 +208,7 @@ export default function LandingPage() {
       </section>
 
       {/* Features */}
-      <section id="features" className="scroll-mt-20 border-y border-border bg-[#081426]/60 py-20 md:py-28">
+      <section id="features" className="scroll-mt-20 border-y border-border bg-sidebar/60 py-20 md:py-28">
         <div className="mx-auto max-w-7xl px-4 md:px-6">
           <SectionHeading eyebrow="Key features" title="Built for analysts, responders and researchers" />
           <div className="mt-14 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -271,7 +275,7 @@ export default function LandingPage() {
             ))}
           </div>
           <div className="mx-auto mt-8 flex max-w-3xl flex-col items-center gap-3 rounded-2xl border border-fire-soft/25 bg-fire-soft/[0.05] p-5 text-center sm:flex-row sm:text-left">
-            <p className="text-xs leading-relaxed text-[#f3d3a6]">
+            <p className="text-xs leading-relaxed text-warn-fg">
               The dashboard shows real NASA FIRMS results for our study regions, processed in our Colab notebooks and served as
               static files. It is a research prototype, not an operational fire-warning system.
             </p>
@@ -281,7 +285,7 @@ export default function LandingPage() {
 
       {/* CTA */}
       <section className="px-4 pb-20 md:px-6 md:pb-28">
-        <div className="relative mx-auto max-w-5xl overflow-hidden rounded-3xl border border-border-strong bg-gradient-to-br from-surface-2 via-surface to-[#1a1220] p-10 text-center md:p-14">
+        <div className="relative mx-auto max-w-5xl overflow-hidden rounded-3xl border border-border-strong bg-gradient-to-br from-surface-2 via-surface to-surface-3 p-10 text-center md:p-14">
           <div className="bg-grid absolute inset-0 opacity-50 [mask-image:radial-gradient(ellipse_at_center,black,transparent_70%)]" />
           <div className="relative">
             <h2 className="font-display text-3xl font-semibold tracking-tight md:text-4xl">
@@ -305,7 +309,7 @@ export default function LandingPage() {
       </section>
 
       {/* Footer / team */}
-      <footer id="team" className="scroll-mt-20 border-t border-border bg-[#050d18]">
+      <footer id="team" className="scroll-mt-20 border-t border-border bg-footer">
         <div className="mx-auto grid max-w-7xl grid-cols-1 gap-10 px-4 py-14 md:grid-cols-[1.3fr_2fr] md:px-6">
           <div>
             <Logo />

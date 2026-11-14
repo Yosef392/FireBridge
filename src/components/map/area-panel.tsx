@@ -226,7 +226,7 @@ export function AreaPanel({
       }
     >
       {activeHint && (
-        <p className="mb-3 rounded-lg border border-[#2fd3a4]/40 bg-[#2fd3a4]/10 px-3 py-2 text-xs text-[#a7f0da]" role="status">
+        <p className="mb-3 rounded-lg border border-draw/40 bg-draw/10 px-3 py-2 text-xs text-draw-fg" role="status">
           {activeHint}. Press Esc or click the button again to cancel.
         </p>
       )}
@@ -341,7 +341,7 @@ export function AreaPanel({
 
           <CalendarHeatmap months={result.months} metric="calendar" viirsFrom={viirsFrom} />
           <p className="text-[11px] text-subtle">
-            A 10 km cell counts when its centre is inside the area (outlined white on the map). Summed from the exported cells
+            A 10 km cell counts when its centre is inside the area (outlined on the map). Summed from the exported cells
             (cell-months below 0.5 hotspots are not exported), so totals can sit slightly under the regional calendar. No model band
             at cell level.
           </p>

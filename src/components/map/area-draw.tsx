@@ -10,7 +10,7 @@ import { shapeBounds, type AreaShape } from "@/lib/harmonized";
 export type DrawTool = "rect" | "polygon" | "circle";
 
 const GEOMAN_SHAPE: Record<DrawTool, "Rectangle" | "Polygon" | "Circle"> = { rect: "Rectangle", polygon: "Polygon", circle: "Circle" };
-const STYLE: L.PathOptions = { color: "#2fd3a4", weight: 2, fillColor: "#2fd3a4", fillOpacity: 0.06 };
+const STYLE: L.PathOptions = { color: "#14b386", weight: 2.5, fillColor: "#14b386", fillOpacity: 0.07 };
 
 /** Leaflet layer → our plain shape object. */
 function toShape(layer: L.Layer): AreaShape | null {

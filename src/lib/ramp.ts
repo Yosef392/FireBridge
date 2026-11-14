@@ -1,6 +1,7 @@
 "use client";
 
 import { useSyncExternalStore } from "react";
+import type { Theme } from "./theme";
 
 /**
  * Colour ramps for counts (calendar cells, map cells). "fire" is the house style; "viridis" and
@@ -14,6 +15,16 @@ export const RAMPS = {
 } as const;
 
 export type RampName = keyof typeof RAMPS;
+
+/**
+ * On a light background the fire ramp runs light → dark (darker = more fires), the usual reading of a
+ * colour scale on white; the dark theme keeps dark → bright. Viridis and Cividis read well on both.
+ */
+const FIRE_LIGHT = ["#fff4e0", "#fddcae", "#fbb978", "#f58f4b", "#e5632a", "#c13f1c", "#8f2412", "#57120a"] as const;
+
+export function rampStops(name: RampName, theme: Theme = "dark"): readonly string[] {
+  return name === "fire" && theme === "light" ? FIRE_LIGHT : RAMPS[name];
+}
 export const RAMP_OPTIONS: { value: RampName; label: string }[] = [
   { value: "fire", label: "Fire" },
   { value: "viridis", label: "Viridis" },
@@ -62,9 +73,9 @@ function hexToRgb(h: string) {
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }
 
-/** t in [0, 1] → colour on the chosen ramp. */
-export function rampColor(t: number, name: RampName = "fire") {
-  const ramp = RAMPS[name];
+/** t in [0, 1] → colour on the chosen ramp (for the given theme). */
+export function rampColor(t: number, name: RampName = "fire", theme: Theme = "dark") {
+  const ramp = rampStops(name, theme);
   const x = Math.min(1, Math.max(0, t)) * (ramp.length - 1);
   const i = Math.min(ramp.length - 2, Math.floor(x));
   const f = x - i;
@@ -74,7 +85,8 @@ export function rampColor(t: number, name: RampName = "fire") {
   return `rgb(${c[0]}, ${c[1]}, ${c[2]})`;
 }
 
-export const rampGradient = (name: RampName, from = 0) => `linear-gradient(90deg, ${RAMPS[name].slice(from).join(", ")})`;
+export const rampGradient = (name: RampName, from = 0, theme: Theme = "dark") =>
+  `linear-gradient(90deg, ${rampStops(name, theme).slice(from).join(", ")})`;
 
 /** Month abbreviation without pulling in a charting module. */
 export const MONTHS_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];

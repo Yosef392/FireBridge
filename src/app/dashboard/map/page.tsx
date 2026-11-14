@@ -23,6 +23,7 @@ import {
   type AreaShape,
 } from "@/lib/harmonized";
 import { MONTHS_SHORT, RAMP_OPTIONS, rampGradient, setRampName, useRampName } from "@/lib/ramp";
+import { useTheme } from "@/lib/theme";
 import { fmtCompact, fmtInt } from "@/lib/utils";
 import { CsvButton } from "@/components/dashboard/csv-button";
 import { round, slug, toCsv } from "@/lib/csv";
@@ -45,6 +46,7 @@ export default function MapPage() {
   const [metric, setMetric] = useState<Metric>("harmonized");
   const [basemap, setBasemap] = useState<Basemap>("dark");
   const ramp = useRampName();
+  const theme = useTheme();
   const [area, setArea] = useState<AreaShape | null>(null);
   const [tool, setTool] = useState<DrawTool | null>(null);
   const [liveDays, setLiveDays] = useState<"0" | "1" | "7">("0");
@@ -293,7 +295,7 @@ export default function MapPage() {
           value={basemap}
           onChange={setBasemap}
           options={[
-            { value: "dark", label: "Dark" },
+            { value: "dark", label: "Map" },
             { value: "satellite", label: "Satellite" },
           ]}
         />
@@ -324,15 +326,15 @@ export default function MapPage() {
           <div className="flex flex-wrap items-center gap-x-6 gap-y-2 px-3 pb-2 pt-3 text-[11px] text-muted">
             <span className="flex items-center gap-2">
               1
-              <span className="h-2 w-40 rounded-full" style={{ background: rampGradient(ramp, 1) }} aria-hidden />
+              <span className="h-2 w-40 rounded-full" style={{ background: rampGradient(ramp, 1, theme) }} aria-hidden />
               {view ? fmtCompact(view.max) : "—"} detections per cell (log scale)
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="h-0 w-5 border-t border-dashed border-white/60" aria-hidden /> Study region{allMode ? "s" : ""}
+              <span className="h-0 w-5 border-t border-dashed border-foreground/60" aria-hidden /> Study region{allMode ? "s" : ""}
             </span>
             {area && (
               <span className="flex items-center gap-1.5">
-                <span className="h-0 w-5 border-t-2 border-[#2fd3a4]" aria-hidden /> Your area (white outline: cells it counts)
+                <span className="h-0 w-5 border-t-2 border-draw" aria-hidden /> Your area (outlined: cells it counts)
               </span>
             )}
             {liveDays !== "0" && (

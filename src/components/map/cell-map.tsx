@@ -4,6 +4,7 @@ import "leaflet/dist/leaflet.css";
 import { useEffect } from "react";
 import { CircleMarker, MapContainer, Rectangle, TileLayer, Tooltip, useMap } from "react-leaflet";
 import type { RampName } from "@/lib/ramp";
+import { useTheme } from "@/lib/theme";
 import type { AreaShape } from "@/lib/harmonized";
 import { CellCanvas, type CanvasCell } from "./cell-canvas";
 import { AreaDraw, type DrawTool } from "./area-draw";
@@ -27,6 +28,13 @@ export type { DrawTool };
 
 /** Study region rectangle [latMin, latMax, lonMin, lonMax] (regions.json order). */
 export type RegionBox = [number, number, number, number];
+
+/** "dark" is the plain map: Esri's dark grey canvas in the dark theme, its light grey one in the light theme. */
+const LIGHT_MAP = {
+  url: "https://server.arcgisonline.com/ArcGIS/rest/services/Canvas/World_Light_Gray_Base/MapServer/tile/{z}/{y}/{x}",
+  attribution: "Tiles &copy; Esri &mdash; Esri, HERE, Garmin, &copy; OpenStreetMap contributors",
+  maxZoom: 16,
+};
 
 const BASEMAPS: Record<Basemap, { url: string; attribution: string; maxZoom: number }> = {
   dark: {
@@ -113,7 +121,9 @@ export default function CellMap({
   /** Near-real-time FIRMS detections, drawn as points on top. */
   live?: LiveHotspot[];
 }) {
-  const b = BASEMAPS[basemap];
+  const theme = useTheme();
+  const b = basemap === "dark" && theme === "light" ? LIGHT_MAP : BASEMAPS[basemap];
+  const outline = theme === "light" ? "#0d1b2e" : "#e7eef8";
   const c = boxes[0] ?? [0, 0, 0, 0];
   return (
     <MapContainer
@@ -124,7 +134,7 @@ export default function CellMap({
       worldCopyJump
       style={{ height, width: "100%", borderRadius: 12, background: "#07111f" }}
     >
-      <TileLayer key={basemap} url={b.url} attribution={b.attribution} maxZoom={b.maxZoom} />
+      <TileLayer key={`${basemap}-${theme}`} url={b.url} attribution={b.attribution} maxZoom={b.maxZoom} />
       <FitBounds boxes={boxes} />
       {boxes.map((bx, i) => (
         <Rectangle
@@ -133,7 +143,7 @@ export default function CellMap({
             [bx[0], bx[2]],
             [bx[1], bx[3]],
           ]}
-          pathOptions={{ color: "#e7eef8", weight: 1.2, dashArray: "5 5", fill: false, opacity: 0.6 }}
+          pathOptions={{ color: outline, weight: 1.2, dashArray: "5 5", fill: false, opacity: 0.6 }}
           interactive={false}
         />
       ))}

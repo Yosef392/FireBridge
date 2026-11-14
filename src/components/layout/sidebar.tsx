@@ -72,7 +72,7 @@ function SidebarFooter() {
 
 export function Sidebar() {
   return (
-    <aside className="sticky top-0 hidden h-dvh w-[264px] shrink-0 flex-col justify-between border-r border-border bg-[#081426]/80 p-5 lg:flex">
+    <aside className="sticky top-0 hidden h-dvh w-[264px] shrink-0 flex-col justify-between border-r border-border bg-sidebar/80 p-5 lg:flex">
       <div className="space-y-8">
         <Logo />
         <NavLinks />
@@ -91,7 +91,7 @@ export function MobileSidebar({ open, onClose }: { open: boolean; onClose: () =>
         aria-modal="true"
         aria-label="Navigation"
         className={cn(
-          "absolute inset-y-0 left-0 flex w-[280px] flex-col justify-between border-r border-border bg-[#081426] p-5 transition-transform duration-300",
+          "absolute inset-y-0 left-0 flex w-[280px] flex-col justify-between border-r border-border bg-sidebar p-5 transition-transform duration-300",
           open ? "translate-x-0" : "-translate-x-full",
         )}
       >
