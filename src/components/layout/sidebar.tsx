@@ -1,30 +1,44 @@
 "use client";
 
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { usePathname } from "next/navigation";
-import { ArrowLeft, Satellite, X } from "lucide-react";
+import { useEffect, useState } from "react";
+import { ArrowLeft, Loader2, Satellite, X } from "lucide-react";
 import { Logo } from "./logo";
 import { DASHBOARD_NAV } from "./nav";
 import { IS_DEMO } from "@/lib/api/config";
 import { cn } from "@/lib/utils";
 import { useIsRealDataPage } from "./data-source";
 
+/** Spinner inside the link that was clicked, shown until the new page is on screen. */
+function PendingSpinner() {
+  const { pending } = useLinkStatus();
+  return pending ? <Loader2 className="ml-auto size-3.5 shrink-0 animate-spin text-primary" aria-label="Loading page" /> : null;
+}
+
 function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
+  // The clicked tab lights up immediately, before the page has arrived (dev mode can take a second or two).
+  const [clicked, setClicked] = useState<string | null>(null);
+  useEffect(() => setClicked(null), [pathname]);
+  const current = clicked ?? pathname;
   return (
     <nav aria-label="Dashboard" className="flex flex-col gap-1">
       <p className="px-3 pb-2 font-mono text-[10px] uppercase tracking-[0.2em] text-subtle">Mission control</p>
       {DASHBOARD_NAV.map((item) => {
-        const active = item.href === "/dashboard" ? pathname === "/dashboard" : pathname.startsWith(item.href);
+        const active = item.href === "/dashboard" ? current === "/dashboard" : current.startsWith(item.href);
         const Icon = item.icon;
         return (
           <Link
             key={item.href}
             href={item.href}
-            onClick={onNavigate}
+            onClick={() => {
+              if (item.href !== pathname) setClicked(item.href);
+              onNavigate?.();
+            }}
             aria-current={active ? "page" : undefined}
             className={cn(
-              "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors",
+              "group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors duration-100",
               active ? "bg-primary/10 text-foreground" : "text-muted hover:bg-surface-2 hover:text-foreground",
             )}
           >
@@ -34,12 +48,14 @@ function NavLinks({ onNavigate }: { onNavigate?: () => void }) {
               <span className="font-medium">{item.label}</span>
               <span className="text-[11px] text-subtle">{item.description}</span>
             </span>
+            <PendingSpinner />
           </Link>
         );
       })}
     </nav>
   );
 }
+
 
 function SidebarFooter() {
   const real = useIsRealDataPage();

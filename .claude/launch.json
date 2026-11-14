@@ -1,7 +1,38 @@
 {
   "version": "0.0.1",
   "configurations": [
-    { "name": "web", "runtimeExecutable": "npm", "runtimeArgs": ["run", "dev"], "port": 3000 },
-    { "name": "web-prod", "runtimeExecutable": "npm", "runtimeArgs": ["run", "start"], "port": 3000 }
+    {
+      "name": "web",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
+      "port": 3000
+    },
+    {
+      "name": "web-prod",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "start"
+      ],
+      "port": 3010,
+      "env": {
+        "NEXT_DIST_DIR": ".next-test"
+      }
+    },
+    {
+      "name": "web-dev-test",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": [
+        "run",
+        "dev"
+      ],
+      "port": 3020,
+      "env": {
+        "NEXT_DIST_DIR": ".next-dev"
+      }
+    }
   ]
 }
