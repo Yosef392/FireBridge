@@ -1,93 +1,340 @@
-# FireBridge
+# 🔥 FireBridge
+### Harmonizing Satellite Fire Observations for Consistent Wildfire Monitoring
 
-AI-powered wildfire monitoring, analytics and early-warning prototype — a NASA Space Apps Challenge project built around the structure of NASA FIRMS **MODIS** and **VIIRS** active-fire data.
+**NASA Space Apps Challenge 2026 | Galactic Problem Solver**
 
-> **Every dashboard page shows real harmonized NASA FIRMS results** (static JSON in `public/data/`, exported by notebook 5). The only live call is the optional near-real-time hotspot layer on the map, which needs a FIRMS MAP_KEY (see below).
+FireBridge is a data-driven wildfire monitoring and satellite-data harmonization prototype designed to address inconsistencies between NASA's MODIS and VIIRS active-fire observations.
 
-## Quick start
+By learning the relationship between the two satellite sensors during their overlapping observation period, FireBridge aims to reconstruct a more consistent historical fire record on a VIIRS-equivalent scale.
+
+The project combines data preprocessing, exploratory data analysis, machine learning, statistical harmonization, and interactive geospatial visualization to make long-term wildfire activity easier to analyze across different geographical regions.
+
+---
+
+## 🌍 The Problem
+
+NASA's MODIS and VIIRS instruments provide valuable information about active fires across the globe. However, they differ in spatial resolution, detection sensitivity, and observation characteristics.
+
+These differences create a significant challenge when analyzing long-term fire activity.
+
+In particular, the introduction of VIIRS observations around 2012 can introduce an artificial discontinuity in historical fire records. An apparent increase in fire detections may reflect changes in satellite technology rather than an actual increase in wildfire activity.
+
+**The central question:**
+
+How can we build a more consistent historical fire record when different satellite sensors observe the same phenomenon differently?
+
+## 💡 Our Solution
+
+FireBridge uses data-driven harmonization to estimate VIIRS-equivalent fire activity from MODIS observations.
+
+Instead of treating MODIS and VIIRS detections as directly interchangeable, the project analyzes their relationship during the overlapping observation period and uses this information to construct a consistent historical record.
+
+The resulting data supports:
+
+- Long-term fire activity analysis.
+- Regional and seasonal comparisons.
+- Historical trend investigation.
+- Identification of unusual fire activity.
+- Geospatial exploration of fire hotspots.
+
+## 🛰️ Data Sources
+
+The project uses NASA FIRMS (Fire Information for Resource Management System) active-fire observations.
+
+| Dataset | Description |
+|---|---|
+| MODIS | Moderate Resolution Imaging Spectroradiometer observations |
+| VIIRS | Visible Infrared Imaging Radiometer Suite observations |
+
+**Key observation variables:**
+- Latitude and Longitude
+- Acquisition Date and Time
+- Fire Radiative Power (FRP)
+- Brightness
+- Confidence
+- Day/Night indicator
+- Satellite source
+
+The harmonization pipeline works with multiple geographical study regions to investigate how sensor relationships vary across different fire environments.
+
+## ⚙️ Methodology & Data Pipeline
+
+The project follows a structured data science workflow.
+
+### 1. Data Collection
+- Downloading MODIS and VIIRS active-fire observations from NASA FIRMS.
+- Collecting historical yearly datasets.
+- Retrieving recent observations through the FIRMS Area API.
+- Organizing regional datasets for analysis.
+
+### 2. Data Preprocessing & EDA
+- Inspecting dataset structures and data quality.
+- Handling missing and inconsistent values.
+- Filtering vegetation-fire observations where applicable.
+- Exploring FRP distributions and detection characteristics.
+- Analyzing temporal and geographical patterns.
+- Investigating differences between satellite sensors.
+
+### 3. Machine Learning Baseline
+A per-detection MODIS-to-VIIRS prediction baseline was developed.
+
+The workflow includes:
+- Matching observations between sensors.
+- Evaluating multiple candidate models.
+- Chronological train/test evaluation.
+- Comparing model performance.
+
+Seven models were investigated in the baseline experiment.
+
+### 4. Statistical Harmonization — Version 2
+
+The second version focuses on estimating VIIRS-equivalent fire counts at a consistent spatial and temporal resolution.
+
+The harmonization framework works with:
+
+- 10 km spatial cells.
+- Monthly aggregation.
+- Historical observations from 2000 onward.
+- Uncertainty bands around estimated fire activity.
+
+This provides a common analytical scale for comparing fire activity across different years and regions.
+
+### 5. Data Export & Visualization
+
+Processed results are exported into JSON files and integrated into the interactive web application.
+
+The dashboard provides access to historical activity, regional comparisons, temporal trends, and geospatial exploration.
+
+## 📊 Interactive Dashboard
+
+FireBridge includes several dashboard sections designed to explore the harmonized fire record.
+
+| Page | Main Features |
+|---|---|
+| Overview | KPIs, detection time series, monthly and seasonal activity, regional distribution and recent hotspots |
+| Calendar | Historical fire activity calendar, monthly comparisons, yearly trends and anomaly analysis |
+| Fire Map | Geospatial hotspot visualization, custom-area analysis and regional breakdowns |
+| Analytics | VIIRS/MODIS ratios, fire seasons, regional profiles and good/bad year comparisons |
+| Model Evaluation | Model scores, 2012 discontinuity analysis and leave-one-region-out evaluation |
+| About | Project workflow, satellite information and limitations |
+
+### Interactive Map Features
+
+The Fire Map supports:
+
+- Historical hotspot exploration by year and month.
+- Analysis of individual regions or all study regions.
+- Custom geographical areas using boxes, polygons, and circles.
+- Area-based statistics and regional breakdowns.
+- CSV and PNG exports.
+- Optional near-real-time VIIRS hotspot visualization.
+
+### Historical Analysis
+
+The Calendar and Analytics pages provide:
+
+- Monthly and seasonal fire activity patterns.
+- Current-month comparisons against historical medians.
+- Yearly trends using Theil–Sen estimation.
+- Mann–Kendall trend testing.
+- Anomaly exploration.
+- Regional and hemispheric comparisons.
+
+## 🧪 Model Evaluation & Generalization
+
+Model evaluation is an important part of FireBridge.
+
+Beyond evaluating performance on a conventional chronological test set, the project includes a leave-one-region-out experiment.
+
+In this evaluation:
+- The model is trained using six geographical regions.
+- The remaining region is held out for testing.
+- The process investigates how well learned sensor relationships transfer to unseen geographical environments.
+
+This helps identify regional differences and limitations in cross-region generalization.
+
+The project also investigates the artificial discontinuity around 2012 and the consistency of the reconstructed historical record.
+
+## 🛠️ Technology Stack
+
+| Category | Technologies |
+|---|---|
+| Programming | Python, TypeScript, JavaScript |
+| Data Science | Pandas, NumPy, Scikit-learn |
+| Data Processing | Google Colab, Jupyter Notebooks, Parquet |
+| Frontend | Next.js, React |
+| Visualization | Recharts |
+| Geospatial Mapping | Leaflet |
+| Backend Integration | FastAPI |
+| Data Exchange | JSON, REST API |
+| Data Source | NASA FIRMS |
+
+## 📁 Project Structure
+
+```text
+FireBridge/
+│
+├── notebooks/
+│   ├── 1_Downloading.ipynb
+│   ├── 2_Preprocessing.ipynb
+│   ├── 3_Prediction.ipynb
+│   ├── 4_Harmonization.ipynb
+│   └── 5_Export.ipynb
+│
+├── public/
+│   └── data/
+│
+├── src/
+│   ├── app/
+│   ├── components/
+│   │   ├── ui/
+│   │   ├── layout/
+│   │   ├── dashboard/
+│   │   ├── charts/
+│   │   ├── map/
+│   │   └── landing/
+│   │
+│   ├── context/
+│   ├── hooks/
+│   └── lib/
+│       ├── api/
+│       ├── analytics.ts
+│       └── types.ts
+│
+├── data/
+│   └── demo/
+│
+└── README.md
+```
+
+## 🚀 Getting Started
+
+### Prerequisites
+
+- Node.js
+- npm
+- Git
+
+### Installation
+
+Clone the repository:
+
+```bash
+git clone https://github.com/Yosef392/FireBridge.git
+cd FireBridge
+```
+
+Install dependencies:
 
 ```bash
 npm install
-npm run dev        # http://localhost:3000
-npm run build && npm run start   # production
+```
+
+Start the development server:
+
+```bash
+npm run dev
+```
+
+Open:
+
+```text
+http://localhost:3000
+```
+
+### Production Build
+
+```bash
+npm run build
+npm run start
+```
+
+### Type Checking
+
+```bash
 npm run typecheck
 ```
 
-Optional, for live hotspots on the Fire Map: copy `.env.example` to `.env.local` and set `FIRMS_MAP_KEY` (free key from https://firms.modaps.eosdis.nasa.gov/api/map_key/). The key stays on the server: the browser calls `/api/hotspots`, which proxies FIRMS and caches each answer for 15 minutes.
+## 🔌 Optional: Live NASA FIRMS Integration
 
-## Pages
+The dashboard uses preprocessed harmonized results stored in `public/data/`.
 
-| Route | Purpose |
-|---|---|
-| `/` | Landing page: hero globe, problem/solution, methodology, features, data sources, team |
-| `/dashboard` | Overview: KPIs, detections time series, monthly & seasonal charts, regional distribution, risk mix, recent hotspots |
-| `/dashboard/calendar` | Harmonized burning-activity calendar per study region (Fire / Viridis / Cividis colour scales), **this month vs. the historical median** (rank, 25–75% range), **pick a day** (needs `daily_*.json`), yearly totals with a Theil–Sen **trend** and Mann–Kendall test, test scores, anomalies. CSV and PNG export. |
-| `/dashboard/map` | Hotspots per 10 km cell by year/month for one region or **all regions at once** (one fast canvas layer), **your own area**: draw a box, polygon or circle (or type a box / centre + radius), reshape or move it afterwards, works across regions, shows km², per-region breakdown, calendar, trend, CSV and PNG; the area is kept in the link (`?area=`) to share. **Live FIRMS VIIRS hotspots** (last 24 h / 7 days, Suomi NPP + NOAA-20 + NOAA-21). CSV export. |
-| `/dashboard/analytics` | VIIRS ÷ MODIS ratio per region, fire seasons (hemisphere-aligned), good and bad years, region profiles. CSV and PNG export. |
-| `/dashboard/model` | Model scores, 2012 jump check, leave-one-region-out test |
-| `/dashboard/about` | Workflow, MODIS/VIIRS, limitations |
+An optional live hotspot layer can retrieve near-real-time VIIRS observations from NASA FIRMS.
 
-The top bar's **date / region / satellite** filters are global (React context) and drive every dashboard page.
+To enable it:
 
-## Project structure
+1. Obtain a free FIRMS MAP_KEY from:
 
-```
-src/
-  app/                    Next.js App Router pages
-  components/
-    ui/                   shadcn-style primitives (button, card, select, badge…)
-    layout/               sidebar, top bar, dashboard shell, logo
-    dashboard/            KPI/chart cards, loading/empty/error states, hotspot table
-    charts/               Recharts components
-    map/                  Leaflet maps (client-only, dynamically imported)
-    landing/              globe visual, pipeline
-  context/filters.tsx     global dashboard filters
-  hooks/                  useAsync (abortable, loading/error/retry), data hooks
-  lib/
-    api/client.ts         ← the ONLY data entry point for the UI
-    api/config.ts         demo vs api mode
-    analytics.ts          pure aggregation functions (work on demo or API data)
-    types.ts              domain types (FIRMS-style field names)
-  data/demo/              illustrative dataset: regions, seeded detection generator, sample predictions
+   https://firms.modaps.eosdis.nasa.gov/api/map_key/
+
+2. Create `.env.local` using `.env.example` as a template.
+
+3. Configure:
+
+```env
+FIRMS_MAP_KEY=your_map_key
 ```
 
-## Connecting the FastAPI backend
+The frontend accesses the `/api/hotspots` endpoint, which proxies requests to FIRMS and caches responses for 15 minutes.
 
-Set in `.env.local`:
+**Note:** The live hotspot layer is separate from the historical harmonized dataset.
 
-```
+## 🔗 Backend Integration
+
+FireBridge supports integration with a FastAPI backend.
+
+Configure `.env.local`:
+
+```env
 NEXT_PUBLIC_DATA_MODE=api
 NEXT_PUBLIC_API_BASE_URL=http://localhost:8000
 ```
 
-The client then calls these endpoints (response shapes are defined in `src/lib/types.ts`):
+Expected API endpoints:
 
-| Endpoint | Response type |
+| Endpoint | Description |
 |---|---|
-| `GET /api/v1/regions` | `Region[]` |
-| `GET /api/v1/detections?preset=12m&region=ALL&source=ALL` | `DetectionResponse` — `{ range, detections: FireDetection[], previous: FireDetection[], isDemo }` |
-| `GET /api/v1/predictions` | `PredictionResponse` — `{ model: ModelInfo, predictions: RegionPrediction[], featureImportance, isDemo }` |
+| `GET /api/v1/regions` | Returns available geographical regions |
+| `GET /api/v1/detections` | Returns fire detection records |
+| `GET /api/v1/predictions` | Returns model information and regional predictions |
 
-`FireDetection` uses FIRMS column names (`latitude`, `longitude`, `acq_date`, `acq_time`, `frp`, `brightness`, `confidence`, `daynight`) plus `source`, `satellite`, `regionId`, `risk`. When the trained model is ready, return `model.status: "trained"` and real `metrics` — the Predictions page switches its banner and fills the Precision / Recall / F1 / ROC-AUC cards automatically. Enable CORS for the front-end origin in FastAPI.
+The frontend uses a centralized API client to manage data access.
 
-## Data and model (notebooks)
+## 📓 Research & Notebooks
 
-The harmonization pipeline lives in [`notebooks/`](notebooks/) and runs on Google Colab:
+The data processing and harmonization workflow is documented in the following notebooks:
 
-| Notebook | What it does |
+| Notebook | Description |
 |---|---|
-| [`1_Downloading.ipynb`](notebooks/1_Downloading.ipynb) | Downloads NASA FIRMS MODIS + VIIRS for the study regions to Drive as Parquet: yearly country files, then `downloadRecent(MAP_KEY)` for 2025–2026 through the FIRMS Area API (standard processing, then near-real-time) |
-| [`2_Preprocessing.ipynb`](notebooks/2_Preprocessing.ipynb) | Profiling, EDA plots, cleaning (vegetation fires only) |
-| [`3_Prediction.ipynb`](notebooks/3_Prediction.ipynb) | Per-detection MODIS → VIIRS baseline: matching, 7 models, chronological test |
-| [`4_Harmonization.ipynb`](notebooks/4_Harmonization.ipynb) | Version 2: VIIRS-equivalent fire counts per 10 km cell × month, 2000 to the last complete month, with uncertainty band |
-| [`5_Export.ipynb`](notebooks/5_Export.ipynb) | Writes the results as JSON into `public/data/` for the web app, including `daily_<region>.json` for the date picker |
+| [1 — Downloading](notebooks/1_Downloading.ipynb) | Collecting MODIS and VIIRS data from NASA FIRMS |
+| [2 — Preprocessing](notebooks/2_Preprocessing.ipynb) | Data profiling, cleaning and exploratory analysis |
+| [3 — Prediction](notebooks/3_Prediction.ipynb) | Sensor matching and machine learning baseline |
+| [4 — Harmonization](notebooks/4_Harmonization.ipynb) | Monthly VIIRS-equivalent fire-count estimation |
+| [5 — Export](notebooks/5_Export.ipynb) | Exporting processed results for dashboard integration |
 
-**Updating to 2026 and adding La Rioja (Chilecito fire, July 2026).** Notebook 1 now lists `Argentina_La_Rioja` as a core region and ends every region in 2026. Run on Colab, in order: notebook 1 (`downloadRegions(priority='Core')`, the MODIS 2000–2012 backfill cell, then `downloadRecent(MAP_KEY, priority='Core')`), notebook 2 for each region, notebook 4, notebook 5; unzip its output into `public/data/`. The app picks up the new region, months and daily files without code changes. Near-real-time rows have no detection `type`, so the last few weeks can't drop gas flares the way the rest of the record does.
+## ⚠️ Limitations & Considerations
 
-Team plan: [`docs/project-plan.md`](docs/project-plan.md) · Baseline write-up: [`docs/naive-baseline.md`](docs/naive-baseline.md) · [Project report (PDF)](docs/FireBridge_Project_Report.pdf) · [Version 2 models (PDF)](docs/FireBridge_V2_Models.pdf)
+FireBridge is a research and analytical prototype, and its results should be interpreted with the following considerations:
 
-## Notes
+- MODIS and VIIRS have different detection characteristics, so harmonization involves estimation rather than direct equivalence.
+- Sensor relationships may vary across geographical regions and fire environments.
+- Leave-one-region-out evaluation highlights that generalization to unseen regions is not uniform.
+- Historical harmonized results are generated through the data pipeline and exported as static JSON.
+- Near-real-time hotspot visualization requires an optional FIRMS API key.
+- Recent near-real-time records may lack the detection-type information available in the historical processing pipeline.
 
-- Demo detections are generated deterministically (seeded PRNG) for 2020–2024 across 8 regions, with realistic seasonality, sensor mix and FRP distributions, and land-masked so points never fall at sea.
-- Basemap tiles: Esri World Dark Gray / World Imagery (attribution shown on the map).
-- Fonts load via `next/font/google`; the build needs internet access to fetch them.
+The platform is intended for data exploration and scientific analysis, not as a replacement for official emergency alerts or operational fire-response systems.
+
+## 👥 Team
+-إ
+-إ-
+
+**FireBridge — NASA Space Apps Challenge 2026**
+
+A collaborative project exploring how satellite data harmonization and data-driven analytics can improve the consistency of historical wildfire monitoring.
+
+## 🏆 Recognition
+
+**NASA Space Apps Challenge 2026 — Galactic Problem Solver**
+
+Recognized for
