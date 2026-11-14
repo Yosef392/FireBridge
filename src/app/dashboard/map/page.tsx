@@ -15,6 +15,8 @@ import type { Basemap } from "@/components/map/leaflet-map";
 import { useAsync } from "@/hooks/use-async";
 import { fetchCellIndex, fetchCellYear, fetchHarmonizedRegions, regionLabel } from "@/lib/harmonized";
 import { fmtCompact, fmtInt } from "@/lib/utils";
+import { CsvButton } from "@/components/dashboard/csv-button";
+import { round, slug, toCsv } from "@/lib/csv";
 
 const VIIRS_FROM = 2013;
 const YEARS = Array.from({ length: 2024 - 2001 + 1 }, (_, i) => 2024 - i);
@@ -57,12 +59,15 @@ export default function MapPage() {
       }
     }
     const cells: MapCell[] = [];
+    /** Every cell with activity (including the sub-1 model estimates hidden on the map), for the CSV. */
+    const exportRows: { cell: number; bounds: [number, number, number, number]; value: number }[] = [];
     let total = 0;
     let max = 0;
     for (const [c, value] of sums) {
       const b = index.data.cells[c];
       if (!b) continue;
       total += value;
+      exportRows.push({ cell: c, bounds: b, value });
       // Model estimates spread tiny fractions over many cells; only draw cells worth about one detection.
       if (value < 0.5) continue;
       max = Math.max(max, value);
@@ -70,12 +75,38 @@ export default function MapPage() {
     }
     cells.sort((a, b) => a.value - b.value);
     const top = [...cells].reverse().slice(0, 6);
-    return { cells, total, max, top, cellCount: index.data.cells.length, gridKm: index.data.gridKm };
+    exportRows.sort((a, b) => b.value - a.value);
+    return { cells, exportRows, total, max, top, cellCount: index.data.cells.length, gridKm: index.data.gridKm };
   }, [index.data, cellYear.data, regionId, month, metricShown, year]);
 
   const error = regions.error ?? index.error ?? cellYear.error;
   const period = month === "all" ? String(year) : `${monthLabel(month)} ${year}`;
   const modelled = metricShown === "harmonized" && year < VIIRS_FROM;
+
+  const recordLabel = metricShown === "modis" ? "MODIS" : metricShown === "viirs" || year >= VIIRS_FROM ? "VIIRS" : "model";
+  const cellsCsv =
+    view && region
+      ? () => ({
+          filename: `firebridge_${slug(region.id)}_cells_${year}${month === "all" ? "" : `-${month}`}_${metricShown}.csv`,
+          csv: toCsv(
+            [
+              { header: "region_id", value: () => region.id },
+              { header: "period", value: () => (month === "all" ? String(year) : `${year}-${month}`) },
+              { header: "record", value: () => metricShown },
+              { header: "record_source", value: () => recordLabel },
+              { header: "cell_id", value: (r) => r.cell },
+              { header: "lat_center", value: (r) => round((r.bounds[0] + r.bounds[2]) / 2, 4) },
+              { header: "lon_center", value: (r) => round((r.bounds[1] + r.bounds[3]) / 2, 4) },
+              { header: "lat_min", value: (r) => round(r.bounds[0], 4) },
+              { header: "lon_min", value: (r) => round(r.bounds[1], 4) },
+              { header: "lat_max", value: (r) => round(r.bounds[2], 4) },
+              { header: "lon_max", value: (r) => round(r.bounds[3], 4) },
+              { header: "hotspots", value: (r) => round(r.value, 2) },
+            ],
+            view.exportRows,
+          ),
+        })
+      : null;
 
   return (
     <div className="space-y-6">
@@ -90,7 +121,7 @@ export default function MapPage() {
             </Badge>
             <label className="block w-64">
               <span className="sr-only">Study region</span>
-              <Select value={regionId ?? undefined} onValueChange={setRegionId}>
+              <Select value={regionId ?? ""} onValueChange={setRegionId}>
                 <SelectTrigger aria-label="Study region">
                   <span className="flex items-center gap-2 truncate">
                     <MapPinned className="size-4 shrink-0 text-accent" aria-hidden />
@@ -189,7 +220,11 @@ export default function MapPage() {
         </Card>
 
         <div className="space-y-6">
-          <ChartCard title={period} description={METRIC_HELP[metricShown]}>
+          <ChartCard
+            title={period}
+            description={METRIC_HELP[metricShown]}
+            actions={<CsvButton title={`hotspots per 10 km cell, ${period}`} build={cellsCsv} />}
+          >
             <dl className="space-y-3 text-xs">
               <div className="flex justify-between">
                 <dt className="text-muted">Detections</dt>

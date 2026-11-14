@@ -9,6 +9,8 @@ import { RegionLines, monthLabel, regionColor } from "@/components/charts/region
 import { useAsync } from "@/hooks/use-async";
 import { fetchAllCalendars, regionLabel, seasonalProfile } from "@/lib/harmonized";
 import { fmtInt } from "@/lib/utils";
+import { CsvButton } from "@/components/dashboard/csv-button";
+import { round, toCsv } from "@/lib/csv";
 
 const VIIRS_FROM = 2013;
 
@@ -81,6 +83,51 @@ export default function AnalyticsPage() {
     return { series, seasonRows, ratioRows, indexRows, table };
   }, [data.data, seasonAlign]);
 
+  const yearlyCsv = data.data
+    ? () => {
+        const rows = data.data!.flatMap((r) => r.years.map((y) => ({ r: r.region, y })));
+        return {
+          filename: "firebridge_all-regions_yearly.csv",
+          csv: toCsv(
+            [
+              { header: "region_id", value: ({ r }) => r.id },
+              { header: "region", value: ({ r }) => regionLabel(r) },
+              { header: "year", value: ({ y }) => y.year },
+              { header: "harmonized_hotspots", value: ({ y }) => round(y.calendar) },
+              { header: "record_source", value: ({ y }) => (y.year < VIIRS_FROM ? "model" : "VIIRS") },
+              { header: "model_band_low", value: ({ y }) => round(y.low) },
+              { header: "model_band_high", value: ({ y }) => round(y.high) },
+              { header: "modis_hotspots", value: ({ y }) => y.modis },
+              { header: "viirs_hotspots", value: ({ y }) => y.viirs },
+              { header: "viirs_modis_ratio", value: ({ y }) => (y.viirs != null && y.modis > 0 ? round(y.viirs / y.modis, 3) : null) },
+            ],
+            rows,
+          ),
+        };
+      }
+    : null;
+
+  const profilesCsv = view
+    ? () => ({
+        filename: "firebridge_region-profiles.csv",
+        csv: toCsv(
+          [
+            { header: "region_id", value: (t) => t.region.id },
+            { header: "region", value: (t) => regionLabel(t.region) },
+            { header: "fire_type", value: (t) => t.region.fireType },
+            { header: "mean_yearly_hotspots", value: (t) => round(t.mean) },
+            { header: "year_to_year_cv_pct", value: (t) => round(t.cv) },
+            { header: "viirs_modis_ratio_mean", value: (t) => round(t.ratio, 3) },
+            { header: "viirs_modis_ratio_min", value: (t) => round(t.ratioMin, 3) },
+            { header: "viirs_modis_ratio_max", value: (t) => round(t.ratioMax, 3) },
+            { header: "peak_months", value: (t) => t.peakMonths.join(" ") },
+            { header: "peak_3_month_share_pct", value: (t) => round(t.peakShare) },
+          ],
+          view.table,
+        ),
+      })
+    : null;
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -88,9 +135,12 @@ export default function AnalyticsPage() {
         title="How the regions differ"
         description="Seasons, sensor differences and year-to-year swings across the 7 study regions, all from the harmonized NASA FIRMS record."
         actions={
-          <Badge variant="success">
-            <Satellite className="size-3" aria-hidden /> NASA FIRMS data
-          </Badge>
+          <>
+            <Badge variant="success">
+              <Satellite className="size-3" aria-hidden /> NASA FIRMS data
+            </Badge>
+            <CsvButton label="Yearly CSV" title="yearly totals for all regions" build={yearlyCsv} />
+          </>
         }
       />
 
@@ -174,7 +224,11 @@ export default function AnalyticsPage() {
         </ChartCard>
       </div>
 
-      <ChartCard title="Region profiles" description="Hover a row to highlight that region in the charts.">
+      <ChartCard
+        title="Region profiles"
+        description="Hover a row to highlight that region in the charts."
+        actions={<CsvButton title="region profiles table" build={profilesCsv} />}
+      >
         {view ? (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[720px] text-left text-xs">

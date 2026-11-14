@@ -16,7 +16,7 @@ export const viewport: Viewport = { themeColor: "#07111F", colorScheme: "dark" }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" className={`${inter.variable} ${display.variable} ${mono.variable}`}>
+    <html lang="en" data-scroll-behavior="smooth" className={`${inter.variable} ${display.variable} ${mono.variable}`}>
       <body className="min-h-dvh">{children}</body>
     </html>
   );

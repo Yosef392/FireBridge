@@ -17,6 +17,8 @@ import {
   type ScoreRow,
 } from "@/lib/harmonized";
 import { cn, fmtInt } from "@/lib/utils";
+import { CsvButton } from "@/components/dashboard/csv-button";
+import { round, slug, toCsv } from "@/lib/csv";
 
 const METRICS: { value: CalendarMetric; label: string }[] = [
   { value: "calendar", label: "Harmonized" },
@@ -59,6 +61,78 @@ export default function CalendarPage() {
   const testRegion = report.data?.test_by_region.find((t) => t.area === regionId) ?? null;
 
   const loadError = regions.error ?? report.error ?? calendar.error;
+
+  /* ---- CSV exports (built on click from the data already on screen) */
+  const ready = region && calendar.data && calendar.data.regionId === region.id ? { region, months: calendar.data.months } : null;
+  const fileBase = region ? `firebridge_${slug(region.id)}` : "firebridge";
+
+  const monthlyCsv = ready
+    ? () => ({
+        filename: `${fileBase}_monthly_${ready.months[0]?.month ?? ""}_${ready.months.at(-1)?.month ?? ""}.csv`,
+        csv: toCsv(
+          [
+            { header: "region_id", value: () => ready.region.id },
+            { header: "region", value: () => `${ready.region.name}, ${ready.region.country}` },
+            { header: "month", value: (m) => m.month },
+            { header: "harmonized_hotspots", value: (m) => round(m.calendar) },
+            { header: "record_source", value: (m) => m.source },
+            { header: "model_estimate", value: (m) => round(m.harmonized) },
+            { header: "model_band_low", value: (m) => round(m.low) },
+            { header: "model_band_high", value: (m) => round(m.high) },
+            { header: "modis_hotspots", value: (m) => m.modis },
+            { header: "modis_terra", value: (m) => m.terra },
+            { header: "modis_aqua", value: (m) => m.aqua },
+            { header: "viirs_hotspots", value: (m) => m.viirs },
+            { header: "raw_join", value: (m) => (Number(m.month.slice(0, 4)) < viirsFrom ? m.modis : m.viirs) },
+            {
+              header: "in_known_event",
+              value: (m) => m.month >= ready.region.eventStart.slice(0, 7) && m.month <= ready.region.eventEnd.slice(0, 7),
+            },
+          ],
+          ready.months,
+        ),
+      })
+    : null;
+
+  const yearlyCsv =
+    ready && years.length
+      ? () => ({
+          filename: `${fileBase}_yearly_${years[0].year}_${years.at(-1)!.year}.csv`,
+          csv: toCsv(
+            [
+              { header: "region_id", value: () => ready.region.id },
+              { header: "year", value: (y) => y.year },
+              { header: "harmonized_hotspots", value: (y) => round(y.calendar) },
+              { header: "record_source", value: (y) => (y.year < viirsFrom ? "model" : "VIIRS") },
+              { header: "model_estimate", value: (y) => round(y.harmonized) },
+              { header: "model_band_low", value: (y) => round(y.low) },
+              { header: "model_band_high", value: (y) => round(y.high) },
+              { header: "modis_hotspots", value: (y) => y.modis },
+              { header: "viirs_hotspots", value: (y) => y.viirs },
+              { header: "raw_join", value: (y) => y.raw },
+            ],
+            years,
+          ),
+        })
+      : null;
+
+  const anomaliesCsv =
+    region && anomalies.length
+      ? () => ({
+          filename: `${fileBase}_anomalies.csv`,
+          csv: toCsv(
+            [
+              { header: "region_id", value: (a) => a.area },
+              { header: "month", value: (a) => a.month },
+              { header: "harmonized_hotspots", value: (a) => round(a.calendar) },
+              { header: "record_source", value: (a) => a.source },
+              { header: "z_score", value: (a) => round(a.z, 2) },
+              { header: "in_known_event", value: (a) => !!a.in_event },
+            ],
+            anomalies,
+          ),
+        })
+      : null;
   const retry = () => {
     regions.retry();
     report.retry();
@@ -78,7 +152,7 @@ export default function CalendarPage() {
             </Badge>
             <label className="block w-64">
               <span className="sr-only">Study region</span>
-              <Select value={regionId ?? undefined} onValueChange={setRegionId}>
+              <Select value={regionId ?? ""} onValueChange={setRegionId}>
                 <SelectTrigger aria-label="Study region">
                   <span className="flex items-center gap-2 truncate">
                     <CalendarDays className="size-4 shrink-0 text-accent" aria-hidden />
@@ -142,7 +216,12 @@ export default function CalendarPage() {
         demo={false}
         title="Monthly fire detections, Nov 2000–2024"
         description={METRIC_HELP[metric]}
-        actions={<Segmented ariaLabel="Calendar metric" value={metric} onChange={setMetric} options={METRICS} />}
+        actions={
+          <>
+            <Segmented ariaLabel="Calendar metric" value={metric} onChange={setMetric} options={METRICS} />
+            <CsvButton title="monthly calendar (all records, every month)" build={monthlyCsv} />
+          </>
+        }
       >
         {calendar.error && !calendar.data ? (
           <ErrorState error={calendar.error} onRetry={calendar.retry} height={420} />
@@ -164,15 +243,18 @@ export default function CalendarPage() {
         title="Yearly totals: the 2012 jump disappears"
         description="The dashed yellow line joins the raw records; the blue line is the harmonized record with its model band (10–90%)."
         actions={
-          <Segmented
-            ariaLabel="Y-axis scale"
-            value={scale}
-            onChange={setScale}
-            options={[
-              { value: "log", label: "Log" },
-              { value: "linear", label: "Linear" },
-            ]}
-          />
+          <>
+            <Segmented
+              ariaLabel="Y-axis scale"
+              value={scale}
+              onChange={setScale}
+              options={[
+                { value: "log", label: "Log" },
+                { value: "linear", label: "Linear" },
+              ]}
+            />
+            <CsvButton title="yearly totals" build={yearlyCsv} />
+          </>
         }
         footer="The band shows how much the 5 ensemble models disagree, not the full error: see the test scores below for that."
       >
@@ -209,7 +291,9 @@ export default function CalendarPage() {
           )}
         </ChartCard>
 
-        <ChartCard demo={false} className="xl:col-span-2" title="Months that stand out" description="z-score vs. the same month in other years, leaving the event year out of the baseline.">
+        <ChartCard demo={false} className="xl:col-span-2" title="Months that stand out" description="z-score vs. the same month in other years, leaving the event year out of the baseline."
+          actions={<CsvButton title="anomalous months" build={anomaliesCsv} />}
+        >
           {!report.data ? (
             <ChartSkeleton height={180} />
           ) : anomalies.length === 0 ? (
