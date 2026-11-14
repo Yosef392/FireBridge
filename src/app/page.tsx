@@ -9,7 +9,6 @@ import {
   Database,
   Eye,
   Flame,
-  Github,
   Globe2,
   Layers,
   Map,
@@ -42,6 +41,8 @@ function SectionHeading({ eyebrow, title, text }: { eyebrow: string; title: Reac
     </div>
   );
 }
+
+const TEAM = ["Youssef Waheed", "Salma Salah", "Ali Abdou", "Amira Azzam", "Youssef Medhat"];
 
 const FEATURES = [
   { icon: Map, title: "Fire map", text: "Fire detections per 10 km cell for any region, year and month, on the harmonized, MODIS or VIIRS record." },
@@ -309,7 +310,7 @@ export default function LandingPage() {
           <div>
             <Logo />
             <p className="mt-4 max-w-sm text-sm leading-relaxed text-muted">
-              AI-powered wildfire monitoring, analytics and early warning — a NASA Space Apps Challenge prototype.
+              One consistent MODIS + VIIRS fire record, harmonized with machine learning — a NASA Space Apps Challenge 2026 project.
             </p>
             <p className="mt-4 text-xs text-subtle">
               Data courtesy of NASA FIRMS (MODIS & VIIRS). This project is not affiliated with or endorsed by NASA.
@@ -319,12 +320,13 @@ export default function LandingPage() {
             <p className="flex items-center gap-2 font-mono text-[11px] uppercase tracking-[0.2em] text-subtle">
               <Users className="size-3.5" aria-hidden /> Team
             </p>
-            <ul className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              {["Data Engineering", "Machine Learning", "Frontend & Design", "Research & Domain"].map((role, i) => (
-                <li key={role} className="rounded-xl border border-dashed border-border-strong p-4">
-                  <span className="flex size-9 items-center justify-center rounded-full bg-surface-2 font-mono text-xs text-muted">T{i + 1}</span>
-                  <p className="mt-3 text-sm font-medium">Team Member {i + 1}</p>
-                  <p className="text-xs text-muted">{role}</p>
+            <ul className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {TEAM.map((name) => (
+                <li key={name} className="flex items-center gap-3 rounded-xl border border-border-strong bg-surface/40 p-4">
+                  <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-surface-2 font-mono text-xs text-muted">
+                    {name.split(" ").map((w) => w[0]).join("")}
+                  </span>
+                  <p className="text-sm font-medium">{name}</p>
                 </li>
               ))}
             </ul>
@@ -332,11 +334,9 @@ export default function LandingPage() {
         </div>
         <div className="border-t border-border">
           <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-3 px-4 py-5 text-xs text-subtle sm:flex-row md:px-6">
-            <p>© {new Date().getFullYear()} FireBridge · Team name placeholder</p>
+            <p>© {new Date().getFullYear()} FireBridge</p>
             <p className="flex items-center gap-4">
-              <span className="inline-flex items-center gap-1.5">
-                <Github className="size-3.5" aria-hidden /> Repository link placeholder
-              </span>
+              <span>NASA Space Apps Challenge 2026 · Harmonization of MODIS and VIIRS Hot Spots</span>
               <span>Not for operational or emergency use</span>
             </p>
           </div>
