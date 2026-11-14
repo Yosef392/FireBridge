@@ -93,7 +93,7 @@ export default function ModelPage() {
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <ChartCard
           title="Test years"
-          description={r ? `Trained on 2013–${r.split.train_until}, tuned on ${r.split.val_years.join(", ")}, tested once on ${r.split.test_from}–${cov?.testTo ?? r.years[1]}.` : undefined}
+          description={r ? `Trained on 2013–${r.split.train_until}, tuned on ${r.split.val_years.join(", ")}, tested once on ${r.split.test_from}–${r.split.test_until ?? cov?.testTo ?? r.years[1]}.` : undefined}
         >
           {r ? <Scores rows={r.test_overall} /> : <ChartSkeleton height={160} />}
           <p className="mt-3 text-[11px] leading-relaxed text-subtle">

@@ -414,7 +414,7 @@ export default function CalendarPage() {
           title="How accurate is it?"
           description={
             report.data
-              ? `Trained on ${viirsFrom}–${report.data.split.train_until}, tuned on ${report.data.split.val_years.join(", ")}, tested once on ${report.data.split.test_from}–${report.data.years[1]} (years never seen in training).`
+              ? `Trained on ${viirsFrom}–${report.data.split.train_until}, tuned on ${report.data.split.val_years.join(", ")}, tested once on ${report.data.split.test_from}–${report.data.split.test_until ?? report.data.years[1]} (years never seen in training).`
               : undefined
           }
         >
