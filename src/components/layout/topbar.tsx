@@ -10,12 +10,15 @@ import { IS_DEMO } from "@/lib/api/config";
 import type { DatePreset, SourceFilter } from "@/lib/types";
 import { LogoMark } from "./logo";
 import { useIsRealDataPage } from "./data-source";
+import { useCoverage } from "@/hooks/use-coverage";
+import { fmtMonth } from "@/lib/harmonized";
 
 const CONTINENTS = [...new Set(REGIONS.map((r) => r.continent))];
 
 export function Topbar({ onMenu }: { onMenu: () => void }) {
   const { filters, setFilter, reset } = useFilters();
   const real = useIsRealDataPage();
+  const cov = useCoverage();
   const demo = IS_DEMO && !real;
   const range = resolveRange(filters.preset);
   const dirty =
@@ -30,7 +33,9 @@ export function Topbar({ onMenu }: { onMenu: () => void }) {
         <LogoMark className="size-7 lg:hidden" />
 
         {real ? (
-          <p className="text-xs text-muted">NASA FIRMS MODIS + VIIRS · 7 study regions · 2000–2024</p>
+          <p className="text-xs text-muted">
+            NASA FIRMS MODIS + VIIRS{cov ? ` · ${cov.regionCount} study regions · ${fmtMonth(cov.firstMonth)} – ${fmtMonth(cov.lastMonth)}` : ""}
+          </p>
         ) : (
         <div className="order-last grid w-full grid-cols-1 gap-2 sm:grid-cols-3 lg:order-none lg:flex lg:w-auto lg:flex-1 lg:items-center">
           <label className="relative block lg:w-56">

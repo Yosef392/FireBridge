@@ -1,16 +1,19 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Satellite } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Segmented } from "@/components/ui/segmented";
 import { ChartCard, ChartSkeleton, ErrorState, Notice, PageHeader } from "@/components/dashboard/primitives";
 import { RegionLines, monthLabel, regionColor } from "@/components/charts/region-charts";
 import { useAsync } from "@/hooks/use-async";
+import { useCoverage } from "@/hooks/use-coverage";
 import { fetchAllCalendars, regionLabel, seasonalProfile } from "@/lib/harmonized";
 import { fmtInt } from "@/lib/utils";
 import { CsvButton } from "@/components/dashboard/csv-button";
 import { round, toCsv } from "@/lib/csv";
+import { PngButton } from "@/components/dashboard/png-button";
+import { downloadSvgChart } from "@/lib/png";
 
 const VIIRS_FROM = 2013;
 
@@ -18,6 +21,13 @@ export default function AnalyticsPage() {
   const data = useAsync((s) => fetchAllCalendars(VIIRS_FROM, s), []);
   const [focus, setFocus] = useState<string | null>(null);
   const [seasonAlign, setSeasonAlign] = useState<"calendar" | "local">("calendar");
+  const cov = useCoverage();
+  const span = cov ? `${cov.firstFullYear}–${cov.lastFullYear}` : "";
+  const ratioRef = useRef<HTMLDivElement>(null);
+  const seasonRef = useRef<HTMLDivElement>(null);
+  const yearsRef = useRef<HTMLDivElement>(null);
+  const png = (ref: React.RefObject<HTMLDivElement | null>, file: string, title: string, subtitle?: string) =>
+    view ? () => downloadSvgChart(ref.current!, file, title, subtitle) : null;
 
   const view = useMemo(() => {
     if (!data.data) return null;
@@ -133,7 +143,7 @@ export default function AnalyticsPage() {
       <PageHeader
         eyebrow="Analytics"
         title="How the regions differ"
-        description="Seasons, sensor differences and year-to-year swings across the 7 study regions, all from the harmonized NASA FIRMS record."
+        description={`Seasons, sensor differences and year-to-year swings across the ${cov ? `${cov.regionCount} ` : ""}study regions, all from the harmonized NASA FIRMS record.`}
         actions={
           <>
             <Badge variant="success">
@@ -148,8 +158,10 @@ export default function AnalyticsPage() {
 
       <ChartCard
         title="VIIRS sees more fires than MODIS, but by how much depends on the place"
-        description="Yearly VIIRS detections ÷ MODIS detections, 2013–2024 (log scale). This is why one global conversion factor can't harmonize the record: small agricultural fires (Nile Delta) are mostly invisible to MODIS, big forest fires (Canada, Portugal) are not."
+        description={`Yearly VIIRS detections ÷ MODIS detections, ${VIIRS_FROM}–${cov?.lastFullYear ?? ""} (log scale). This is why one global conversion factor can't harmonize the record: small agricultural fires (Nile Delta) are mostly invisible to MODIS, big forest fires (Canada, Portugal) are not.`}
+        actions={<PngButton title="VIIRS to MODIS ratio chart" run={png(ratioRef, "firebridge_viirs-modis-ratio.png", "VIIRS ÷ MODIS detections per year", "All study regions, 2013 onward (log scale)")} />}
       >
+        <div ref={ratioRef}>
         {view ? (
           <RegionLines
             rows={view.ratioRows}
@@ -164,6 +176,7 @@ export default function AnalyticsPage() {
         ) : (
           <ChartSkeleton height={320} />
         )}
+        </div>
       </ChartCard>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
@@ -175,17 +188,24 @@ export default function AnalyticsPage() {
               : "Average share of each year's fires that falls in each month (harmonized record)."
           }
           actions={
-            <Segmented
-              ariaLabel="Month alignment"
-              value={seasonAlign}
-              onChange={setSeasonAlign}
-              options={[
-                { value: "calendar", label: "Calendar months" },
-                { value: "local", label: "Align hemispheres" },
-              ]}
-            />
+            <>
+              <Segmented
+                ariaLabel="Month alignment"
+                value={seasonAlign}
+                onChange={setSeasonAlign}
+                options={[
+                  { value: "calendar", label: "Calendar months" },
+                  { value: "local", label: "Align hemispheres" },
+                ]}
+              />
+              <PngButton
+                title="fire season chart"
+                run={png(seasonRef, "firebridge_fire-season.png", "Fire season: share of the year's hotspots per month", seasonAlign === "local" ? "Hemispheres aligned" : "Calendar months")}
+              />
+            </>
           }
         >
+          <div ref={seasonRef}>
           {view ? (
             <RegionLines
               rows={view.seasonRows}
@@ -200,12 +220,15 @@ export default function AnalyticsPage() {
           ) : (
             <ChartSkeleton height={300} />
           )}
+          </div>
         </ChartCard>
 
         <ChartCard
           title="Good and bad years"
-          description="Each year's detections as a share of the region's 2001–2024 average (100 = average year, log scale)."
+          description={`Each year's detections as a share of the region's ${span} average (100 = average year, log scale).`}
+          actions={<PngButton title="good and bad years chart" run={png(yearsRef, "firebridge_year-index.png", "Good and bad years", "Each year vs. the region's average (100 = average, log scale)")} />}
         >
+          <div ref={yearsRef}>
           {view ? (
             <RegionLines
               rows={view.indexRows}
@@ -221,6 +244,7 @@ export default function AnalyticsPage() {
           ) : (
             <ChartSkeleton height={300} />
           )}
+          </div>
         </ChartCard>
       </div>
 
@@ -276,7 +300,7 @@ export default function AnalyticsPage() {
         <div className="mt-4">
           <Notice tone="info">
             “Year-to-year swing” is the standard deviation of yearly totals as a share of the average. Average year is on the VIIRS
-            scale, 2001–2024.
+            scale, {span}.
           </Notice>
         </div>
       </ChartCard>

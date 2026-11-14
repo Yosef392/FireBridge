@@ -1,24 +1,31 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowRightLeft, CalendarDays, Satellite, Scale } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Segmented } from "@/components/ui/segmented";
 import { ChartCard, ChartSkeleton, ErrorState, KpiCard, Notice, PageHeader } from "@/components/dashboard/primitives";
-import { CalendarHeatmap, YearlyHarmonizedChart } from "@/components/charts/harmonized-charts";
+import { CalendarHeatmap, MonthHistoryChart, YearlyHarmonizedChart, downloadCalendarPng } from "@/components/charts/harmonized-charts";
 import { useAsync } from "@/hooks/use-async";
 import {
   fetchCalendar,
   fetchHarmonizedRegions,
   fetchModelReport,
+  compareMonth,
+  fmtMonth,
   yearlyRows,
+  yearlyTrend,
   type CalendarMetric,
   type ScoreRow,
 } from "@/lib/harmonized";
 import { cn, fmtInt } from "@/lib/utils";
 import { CsvButton } from "@/components/dashboard/csv-button";
 import { round, slug, toCsv } from "@/lib/csv";
+import { PngButton } from "@/components/dashboard/png-button";
+import { DailyPanel } from "@/components/dashboard/daily-panel";
+import { downloadSvgChart } from "@/lib/png";
+import { MONTHS_SHORT, RAMP_OPTIONS, setRampName, useRampName } from "@/lib/ramp";
 
 const METRICS: { value: CalendarMetric; label: string }[] = [
   { value: "calendar", label: "Harmonized" },
@@ -43,6 +50,9 @@ export default function CalendarPage() {
   const [regionId, setRegionId] = useState<string | null>(null);
   const [metric, setMetric] = useState<CalendarMetric>("calendar");
   const [scale, setScale] = useState<"linear" | "log">("log");
+  const [pickedMonth, setPickedMonth] = useState<string | null>(null);
+  const ramp = useRampName();
+  const yearlyRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!regionId && regions.data?.length) {
@@ -59,6 +69,15 @@ export default function CalendarPage() {
   const jump = report.data?.jump_check.find((j) => j.area === regionId) ?? null;
   const anomalies = (report.data?.anomalies ?? []).filter((a) => a.area === regionId);
   const testRegion = report.data?.test_by_region.find((t) => t.area === regionId) ?? null;
+  const trend = useMemo(() => yearlyTrend(years.map((y) => ({ year: y.year, value: y.calendar }))), [years]);
+
+  /* ---- this month vs. the same month in other years */
+  const monthOptions = useMemo(() => (calendar.data ? calendar.data.months.map((m) => m.month).reverse() : []), [calendar.data]);
+  const compareTo = pickedMonth && monthOptions.includes(pickedMonth) ? pickedMonth : monthOptions[0] ?? null;
+  const comparison = useMemo(
+    () => (calendar.data && compareTo ? compareMonth(calendar.data.months, compareTo, viirsFrom) : null),
+    [calendar.data, compareTo, viirsFrom],
+  );
 
   const loadError = regions.error ?? report.error ?? calendar.error;
 
@@ -214,12 +233,36 @@ export default function CalendarPage() {
 
       <ChartCard
         demo={false}
-        title="Monthly fire detections, Nov 2000–2024"
+        title={
+          calendar.data?.months.length
+            ? `Monthly fire detections, ${fmtMonth(calendar.data.months[0].month)} – ${fmtMonth(calendar.data.months.at(-1)!.month)}`
+            : "Monthly fire detections"
+        }
         description={METRIC_HELP[metric]}
         actions={
           <>
             <Segmented ariaLabel="Calendar metric" value={metric} onChange={setMetric} options={METRICS} />
+            <Segmented ariaLabel="Colour scale" value={ramp} onChange={setRampName} options={RAMP_OPTIONS} />
             <CsvButton title="monthly calendar (all records, every month)" build={monthlyCsv} />
+            <PngButton
+              title="calendar heatmap"
+              run={
+                ready
+                  ? () =>
+                      downloadCalendarPng({
+                        months: ready.months,
+                        metric,
+                        viirsFrom,
+                        ramp,
+                        title: `Burning-activity calendar · ${ready.region.name}, ${ready.region.country}`,
+                        subtitle: METRICS.find((m) => m.value === metric)?.label + " record, hotspots per month",
+                        filename: `${fileBase}_calendar_${metric}.png`,
+                        eventStart: ready.region.eventStart,
+                        eventEnd: ready.region.eventEnd,
+                      })
+                  : null
+              }
+            />
           </>
         }
       >
@@ -240,8 +283,95 @@ export default function CalendarPage() {
 
       <ChartCard
         demo={false}
+        title="This month vs. the historical median"
+        description="Pick a month: how many hotspots it had, against the same month in every other year of the harmonized record."
+        actions={
+          <label className="w-36">
+            <span className="sr-only">Month to compare</span>
+            <Select value={compareTo ?? ""} onValueChange={setPickedMonth}>
+              <SelectTrigger aria-label="Month to compare">
+                <SelectValue placeholder="Month" />
+              </SelectTrigger>
+              <SelectContent>
+                {monthOptions.map((m) => (
+                  <SelectItem key={m} value={m}>
+                    {MONTHS_SHORT[Number(m.slice(5, 7)) - 1]} {m.slice(0, 4)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </label>
+        }
+        footer={
+          comparison
+            ? `Median and shaded 25–75% range over the other ${comparison.years} years. Paler bars are model estimates (before ${viirsFrom}); from ${viirsFrom} the counts are real VIIRS.${comparison.viirsMedian != null ? ` Median over VIIRS years only: ${fmtInt(comparison.viirsMedian)}.` : ""}`
+            : undefined
+        }
+      >
+        {!comparison ? (
+          <ChartSkeleton height={220} />
+        ) : (
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
+            <dl className="grid grid-cols-2 gap-4 text-xs lg:grid-cols-1">
+              <div>
+                <dt className="text-muted">
+                  {MONTHS_SHORT[Number(comparison.month.slice(5, 7)) - 1]} {comparison.month.slice(0, 4)}
+                </dt>
+                <dd className="mt-1 font-display text-2xl font-semibold tabular-nums">{fmtInt(comparison.value)}</dd>
+                <dd className="text-subtle">hotspots · {comparison.source === "model" ? "model estimate" : "VIIRS"}</dd>
+              </div>
+              <div>
+                <dt className="text-muted">vs. median</dt>
+                <dd
+                  className={cn(
+                    "mt-1 font-display text-2xl font-semibold tabular-nums",
+                    comparison.vsMedian == null ? "" : comparison.vsMedian > 0.5 ? "text-fire-soft" : comparison.vsMedian < -0.3 ? "text-accent" : "",
+                  )}
+                >
+                  {comparison.vsMedian == null ? "—" : fmtPctSigned(comparison.vsMedian * 100)}
+                </dd>
+                <dd className="text-subtle">median {fmtInt(comparison.median)}</dd>
+              </div>
+              <div>
+                <dt className="text-muted">Rank</dt>
+                <dd className="mt-1 font-display text-2xl font-semibold tabular-nums">
+                  {comparison.rank}
+                  <span className="text-sm font-normal text-subtle"> / {comparison.years + 1}</span>
+                </dd>
+                <dd className="text-subtle">1 = busiest {MONTHS_SHORT[Number(comparison.month.slice(5, 7)) - 1]} on record</dd>
+              </div>
+              <div>
+                <dt className="text-muted">Usual range</dt>
+                <dd className="mt-1 font-mono text-sm tabular-nums">
+                  {fmtInt(comparison.p25)} – {fmtInt(comparison.p75)}
+                </dd>
+                <dd className="text-subtle">25th–75th percentile</dd>
+              </div>
+            </dl>
+            <div className="lg:col-span-2">
+              <MonthHistoryChart
+                history={comparison.history}
+                selectedYear={Number(comparison.month.slice(0, 4))}
+                median={comparison.median}
+                p25={comparison.p25}
+                p75={comparison.p75}
+              />
+            </div>
+          </div>
+        )}
+      </ChartCard>
+
+      {region && <DailyPanel region={region} />}
+
+      <ChartCard
+        demo={false}
         title="Yearly totals: the 2012 jump disappears"
-        description="The dashed yellow line joins the raw records; the blue line is the harmonized record with its model band (10–90%)."
+        description={
+          "The dashed yellow line joins the raw records; the blue line is the harmonized record with its model band (10–90%)." +
+          (trend
+            ? ` Trend ${trend.from}–${trend.to}: ${trend.slope >= 0 ? "+" : "−"}${fmtInt(Math.abs(trend.slope))} hotspots/year (${trend.pctPerYear >= 0 ? "+" : "−"}${Math.abs(trend.pctPerYear * 100).toFixed(1)}%/yr), ${trend.significant ? `significant (Mann–Kendall p = ${trend.p.toFixed(3)})` : `not significant (p = ${trend.p.toFixed(2)})`}.`
+            : "")
+        }
         actions={
           <>
             <Segmented
@@ -254,11 +384,27 @@ export default function CalendarPage() {
               ]}
             />
             <CsvButton title="yearly totals" build={yearlyCsv} />
+            <PngButton
+              title="yearly totals chart"
+              run={
+                ready && years.length
+                  ? () =>
+                      downloadSvgChart(
+                        yearlyRef.current!,
+                        `${fileBase}_yearly.png`,
+                        `Yearly hotspots · ${ready.region.name}, ${ready.region.country}`,
+                        `Harmonized vs. raw records${scale === "log" ? " (log scale)" : ""}`,
+                      )
+                  : null
+              }
+            />
           </>
         }
         footer="The band shows how much the 5 ensemble models disagree, not the full error: see the test scores below for that."
       >
-        {!calendar.data ? <ChartSkeleton height={320} /> : <YearlyHarmonizedChart rows={years} viirsFrom={viirsFrom} log={scale === "log"} />}
+        <div ref={yearlyRef}>
+          {!calendar.data ? <ChartSkeleton height={320} /> : <YearlyHarmonizedChart rows={years} viirsFrom={viirsFrom} log={scale === "log"} trend={trend} />}
+        </div>
       </ChartCard>
 
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-5">

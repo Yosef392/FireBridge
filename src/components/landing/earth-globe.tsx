@@ -6,29 +6,30 @@ import { feature } from "topojson-client";
 import type { Topology, GeometryCollection } from "topojson-specification";
 import landTopo from "world-atlas/land-110m.json";
 
-/** Centres and sizes of the 7 FireBridge study regions (from public/data/regions.json). */
-const STUDY_REGIONS = [
-  { center: [10.5, -9.2] as [number, number], spread: [4.0, 3.2] as [number, number] },
-  { center: [40.1, -7.9] as [number, number], spread: [1.8, 2.2] as [number, number] },
-  { center: [62.0, -117.5] as [number, number], spread: [4.0, 15.0] as [number, number] },
-  { center: [-32.85, 147.3] as [number, number], spread: [9.5, 12.8] as [number, number] },
-  { center: [-16.75, -56.6] as [number, number], spread: [2.5, 3.2] as [number, number] },
-  { center: [-1.35, 113.3] as [number, number], spread: [4.5, 5.2] as [number, number] },
-  { center: [30.925, 31.4] as [number, number], spread: [1.45, 1.8] as [number, number] },
-];
+type StudyRegion = { center: [number, number]; spread: [number, number] };
+
+/** Study regions straight from public/data/regions.json, so the globe always matches the exported data. */
+async function loadRegions(): Promise<StudyRegion[]> {
+  try {
+    const regions: { center: [number, number]; bbox: [number, number, number, number] }[] = await (await fetch("/data/regions.json")).json();
+    return regions.map((r) => ({ center: r.center, spread: [r.bbox[1] - r.bbox[0], r.bbox[3] - r.bbox[2]] }));
+  } catch {
+    return []; // decorative: a plain globe is fine if the file can't be read
+  }
+}
 
 /**
- * Decorative rotating Earth with glowing clusters at the 7 study regions
+ * Decorative rotating Earth with glowing clusters at the study regions
  * (the sparks inside each region are decorative, not individual fires).
  */
 
 type Spark = { lon: number; lat: number; r: number; phase: number; hot: boolean };
 
-function makeSparks(): Spark[] {
+function makeSparks(regions: StudyRegion[]): Spark[] {
   let seed = 7;
   const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
   const out: Spark[] = [];
-  for (const reg of STUDY_REGIONS) {
+  for (const reg of regions) {
     for (let i = 0; i < 14; i++) {
       out.push({
         lat: reg.center[0] + (rand() - 0.5) * Math.max(2, reg.spread[0]),
@@ -54,7 +55,8 @@ export function EarthGlobe({ className }: { className?: string }) {
     const topo = landTopo as unknown as Topology<{ land: GeometryCollection }>;
     const land = feature(topo, topo.objects.land);
     const graticule = geoGraticule10();
-    const sparks = makeSparks();
+    let sparks: Spark[] = [];
+    loadRegions().then((r) => (sparks = makeSparks(r)));
     const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     let size = 0;

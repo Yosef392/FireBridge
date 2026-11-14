@@ -4,6 +4,8 @@ import { Satellite } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { ChartCard, ChartSkeleton, ErrorState, Notice, PageHeader } from "@/components/dashboard/primitives";
 import { useAsync } from "@/hooks/use-async";
+import { useCoverage } from "@/hooks/use-coverage";
+import { fmtMonth } from "@/lib/harmonized";
 import { fetchHarmonizedRegions, fetchModelReport, regionLabel, type HarmonizedRegion, type ScoreRow } from "@/lib/harmonized";
 import { cn } from "@/lib/utils";
 
@@ -29,7 +31,7 @@ const FEATURE_TEXT: Record<string, string> = {
 const STEPS = [
   {
     title: "1. Grid the fires",
-    text: "Every MODIS and VIIRS vegetation-fire detection from NASA FIRMS is counted in 10 × 10 km equal-area cells, per month, for 2000–2024.",
+    text: "Every MODIS and VIIRS vegetation-fire detection from NASA FIRMS is counted in 10 × 10 km equal-area cells, per month, over the whole record.",
   },
   {
     title: "2. Start from a ratio",
@@ -49,6 +51,7 @@ export default function ModelPage() {
   const report = useAsync((s) => fetchModelReport(s), []);
   const regions = useAsync((s) => fetchHarmonizedRegions(s), []);
   const r = report.data;
+  const cov = useCoverage();
   const name = (id: string) => {
     const reg = regions.data?.find((x) => x.id === id);
     return reg ? regionLabel(reg as HarmonizedRegion) : id.replaceAll("_", " ");
@@ -66,7 +69,7 @@ export default function ModelPage() {
       <PageHeader
         eyebrow="Model"
         title="How the harmonization works, and how well"
-        description="FireBridge converts MODIS fire counts into what VIIRS would have seen, so 2000–2012 and 2013–2024 can be compared directly. All scores below are on years the model never trained on."
+        description={`FireBridge converts MODIS fire counts into what VIIRS would have seen, so 2000–2012 and ${cov ? `${cov.viirsFrom}–${fmtMonth(cov.lastMonth)}` : "the VIIRS years"} can be compared directly. All scores below are on years the model never trained on.`}
         actions={
           <Badge variant="success">
             <Satellite className="size-3" aria-hidden /> NASA FIRMS data
@@ -90,7 +93,7 @@ export default function ModelPage() {
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
         <ChartCard
           title="Test years"
-          description={r ? `Trained on 2013–${r.split.train_until}, tuned on ${r.split.val_years.join(", ")}, tested once on ${r.split.test_from}–${r.years[1]}.` : undefined}
+          description={r ? `Trained on 2013–${r.split.train_until}, tuned on ${r.split.val_years.join(", ")}, tested once on ${r.split.test_from}–${cov?.testTo ?? r.years[1]}.` : undefined}
         >
           {r ? <Scores rows={r.test_overall} /> : <ChartSkeleton height={160} />}
           <p className="mt-3 text-[11px] leading-relaxed text-subtle">

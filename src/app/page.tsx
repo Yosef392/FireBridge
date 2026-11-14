@@ -142,7 +142,7 @@ export default function LandingPage() {
                 Nov 2019 anomaly <span className="rounded-full bg-[#d23a78]/20 px-2 py-0.5 text-[11px] text-[#f3a6c6]">z 27</span>
               </p>
             </div>
-            <p className="mt-2 text-center text-[11px] text-subtle">Globe markers show our 7 study regions</p>
+            <p className="mt-2 text-center text-[11px] text-subtle">Globe markers show our study regions</p>
           </div>
         </div>
       </section>
@@ -272,7 +272,7 @@ export default function LandingPage() {
           </div>
           <div className="mx-auto mt-8 flex max-w-3xl flex-col items-center gap-3 rounded-2xl border border-fire-soft/25 bg-fire-soft/[0.05] p-5 text-center sm:flex-row sm:text-left">
             <p className="text-xs leading-relaxed text-[#f3d3a6]">
-              The dashboard shows real NASA FIRMS results for 7 study regions, processed in our Colab notebooks and served as
+              The dashboard shows real NASA FIRMS results for our study regions, processed in our Colab notebooks and served as
               static files. It is a research prototype, not an operational fire-warning system.
             </p>
           </div>
@@ -288,7 +288,7 @@ export default function LandingPage() {
               Explore the <span className="text-gradient-fire">mission dashboard</span>
             </h2>
             <p className="mx-auto mt-4 max-w-xl text-muted">
-              The harmonized record for 7 regions: calendar, fire map, regional analytics and the model's test scores.
+              The harmonized record for every study region: calendar, fire map, regional analytics and the model's test scores.
             </p>
             <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
               <Button asChild size="lg" variant="fire">

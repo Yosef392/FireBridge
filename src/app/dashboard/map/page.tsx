@@ -8,18 +8,16 @@ import { Card } from "@/components/ui/card";
 import { Segmented } from "@/components/ui/segmented";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ChartCard, ErrorState, Notice, PageHeader } from "@/components/dashboard/primitives";
-import { RAMP } from "@/components/charts/harmonized-charts";
-import { monthLabel } from "@/components/charts/region-charts";
-import type { MapCell } from "@/components/map/cell-map";
-import type { Basemap } from "@/components/map/leaflet-map";
+import type { Basemap, LiveHotspot, MapCell } from "@/components/map/cell-map";
+import { AreaPanel } from "@/components/map/area-panel";
 import { useAsync } from "@/hooks/use-async";
-import { fetchCellIndex, fetchCellYear, fetchHarmonizedRegions, regionLabel } from "@/lib/harmonized";
+import { fetchCalendar, fetchCellIndex, fetchCellYear, fetchHarmonizedRegions, regionLabel, type AreaBox } from "@/lib/harmonized";
+import { MONTHS_SHORT, RAMP_OPTIONS, rampGradient, setRampName, useRampName } from "@/lib/ramp";
 import { fmtCompact, fmtInt } from "@/lib/utils";
 import { CsvButton } from "@/components/dashboard/csv-button";
 import { round, slug, toCsv } from "@/lib/csv";
 
 const VIIRS_FROM = 2013;
-const YEARS = Array.from({ length: 2024 - 2001 + 1 }, (_, i) => 2024 - i);
 type Metric = "harmonized" | "modis" | "viirs";
 
 const METRIC_HELP: Record<Metric, string> = {
@@ -31,10 +29,14 @@ const METRIC_HELP: Record<Metric, string> = {
 export default function MapPage() {
   const regions = useAsync((s) => fetchHarmonizedRegions(s), []);
   const [regionId, setRegionId] = useState<string | null>(null);
-  const [year, setYear] = useState(2024);
+  const [pickedYear, setYear] = useState<number | null>(null);
   const [month, setMonth] = useState<string>("all");
   const [metric, setMetric] = useState<Metric>("harmonized");
   const [basemap, setBasemap] = useState<Basemap>("dark");
+  const ramp = useRampName();
+  const [area, setArea] = useState<AreaBox | null>(null);
+  const [drawing, setDrawing] = useState(false);
+  const [liveDays, setLiveDays] = useState<"0" | "1" | "7">("0");
 
   useEffect(() => {
     if (!regionId && regions.data?.length) {
@@ -44,12 +46,46 @@ export default function MapPage() {
   }, [regions.data, regionId]);
 
   const index = useAsync((s) => (regionId ? fetchCellIndex(regionId, s) : Promise.resolve(null)), [regionId]);
-  const cellYear = useAsync((s) => (regionId ? fetchCellYear(regionId, year, s) : Promise.resolve(null)), [regionId, year]);
+  // Years come from the region's own calendar (newest first): whatever the export covers, nothing hard-coded.
+  const cal = useAsync((s) => (regionId ? fetchCalendar(regionId, s) : Promise.resolve(null)), [regionId]);
+  const years = useMemo(
+    () =>
+      cal.data && cal.data.regionId === regionId
+        ? [...new Set(cal.data.months.filter((m) => m.calendar != null).map((m) => Number(m.month.slice(0, 4))))].sort((a, b) => b - a)
+        : [],
+    [cal.data, regionId],
+  );
+  const year = pickedYear != null && years.includes(pickedYear) ? pickedYear : (years[0] ?? 0);
+  const cellYear = useAsync(
+    (s) => (regionId && year ? fetchCellYear(regionId, year, s) : Promise.resolve(null)),
+    [regionId, year],
+  );
   const region = regions.data?.find((r) => r.id === regionId) ?? null;
+  useEffect(() => {
+    // A drawn area belongs to one region's grid.
+    setArea(null);
+    setDrawing(false);
+  }, [regionId]);
+
+  /* ---- live FIRMS hotspots (last 24 h / 7 days), via our server route so the MAP_KEY stays private */
+  const live = useAsync(
+    async (signal) => {
+      if (liveDays === "0" || !region) return null;
+      const [latMin, latMax, lonMin, lonMax] = region.bbox;
+      const res = await fetch(`/api/hotspots?bbox=${lonMin},${latMin},${lonMax},${latMax}&days=${liveDays}`, { signal });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error ?? `Live hotspots failed (${res.status}).`);
+      return body as { hotspots: LiveHotspot[]; fetchedAt: string; failed: string[] };
+    },
+    [liveDays, region?.id],
+  );
+  const liveRegion = live.data && liveDays !== "0" ? live.data : null;
+
   const metricShown: Metric = metric === "viirs" && year < 2012 ? "harmonized" : metric;
 
   const view = useMemo(() => {
-    if (!index.data || !cellYear.data || index.data.regionId !== regionId || cellYear.data.regionId !== regionId) return null;
+    if (!index.data || !cellYear.data || index.data.regionId !== regionId || cellYear.data.regionId !== regionId || cellYear.data.year !== year)
+      return null;
     const sums = new Map<number, number>();
     const monthsUsed = month === "all" ? Object.keys(cellYear.data.months) : [month];
     for (const mo of monthsUsed) {
@@ -79,8 +115,8 @@ export default function MapPage() {
     return { cells, exportRows, total, max, top, cellCount: index.data.cells.length, gridKm: index.data.gridKm };
   }, [index.data, cellYear.data, regionId, month, metricShown, year]);
 
-  const error = regions.error ?? index.error ?? cellYear.error;
-  const period = month === "all" ? String(year) : `${monthLabel(month)} ${year}`;
+  const error = regions.error ?? cal.error ?? index.error ?? cellYear.error;
+  const period = month === "all" ? String(year) : `${MONTHS_SHORT[Number(month) - 1]} ${year}`;
   const modelled = metricShown === "harmonized" && year < VIIRS_FROM;
 
   const recordLabel = metricShown === "modis" ? "MODIS" : metricShown === "viirs" || year >= VIIRS_FROM ? "VIIRS" : "model";
@@ -144,7 +180,7 @@ export default function MapPage() {
       <div className="flex flex-wrap items-center gap-2">
         <label className="w-32">
           <span className="sr-only">Year</span>
-          <Select value={String(year)} onValueChange={(v) => setYear(Number(v))}>
+          <Select value={year ? String(year) : ""} onValueChange={(v) => setYear(Number(v))}>
             <SelectTrigger aria-label="Year">
               <span className="flex items-center gap-2">
                 <CalendarDays className="size-4 text-primary" aria-hidden />
@@ -152,7 +188,7 @@ export default function MapPage() {
               </span>
             </SelectTrigger>
             <SelectContent>
-              {YEARS.map((y) => (
+              {years.map((y) => (
                 <SelectItem key={y} value={String(y)}>
                   {y}
                 </SelectItem>
@@ -170,7 +206,7 @@ export default function MapPage() {
               <SelectItem value="all">Whole year</SelectItem>
               {Array.from({ length: 12 }, (_, i) => String(i + 1).padStart(2, "0")).map((m) => (
                 <SelectItem key={m} value={m}>
-                  {monthLabel(m)}
+                  {MONTHS_SHORT[Number(m) - 1]}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -184,6 +220,17 @@ export default function MapPage() {
             { value: "harmonized", label: "Harmonized" },
             { value: "modis", label: "MODIS" },
             { value: "viirs", label: "VIIRS" },
+          ]}
+        />
+        <Segmented ariaLabel="Colour scale" value={ramp} onChange={setRampName} options={RAMP_OPTIONS} />
+        <Segmented
+          ariaLabel="Live FIRMS hotspots"
+          value={liveDays}
+          onChange={setLiveDays}
+          options={[
+            { value: "0", label: "Live off" },
+            { value: "1", label: "Live 24 h" },
+            { value: "7", label: "Live 7 d" },
           ]}
         />
         <Segmented
@@ -205,18 +252,52 @@ export default function MapPage() {
           ) : !view || !region ? (
             <MapLoading height="min(68vh, 640px)" />
           ) : (
-            <CellMap cells={view.cells} max={view.max} bbox={region.bbox} basemap={basemap} height="min(68vh, 640px)" />
+            <CellMap
+              cells={view.cells}
+              max={view.max}
+              bbox={region.bbox}
+              basemap={basemap}
+              height="min(68vh, 640px)"
+              ramp={ramp}
+              area={area}
+              drawing={drawing}
+              onAreaDrawn={(box) => {
+                setArea(box);
+                setDrawing(false);
+              }}
+              live={liveRegion?.hotspots ?? []}
+            />
           )}
           <div className="flex flex-wrap items-center gap-x-6 gap-y-2 px-3 pb-2 pt-3 text-[11px] text-muted">
             <span className="flex items-center gap-2">
               1
-              <span className="h-2 w-40 rounded-full" style={{ background: `linear-gradient(90deg, ${RAMP.slice(1).join(", ")})` }} aria-hidden />
+              <span className="h-2 w-40 rounded-full" style={{ background: rampGradient(ramp, 1) }} aria-hidden />
               {view ? fmtCompact(view.max) : "—"} detections per cell (log scale)
             </span>
             <span className="flex items-center gap-1.5">
               <span className="h-0 w-5 border-t border-dashed border-white/60" aria-hidden /> Study region
             </span>
+            {area && (
+              <span className="flex items-center gap-1.5">
+                <span className="h-0 w-5 border-t-2 border-[#2fd3a4]" aria-hidden /> Your area
+              </span>
+            )}
+            {liveDays !== "0" && (
+              <span className="flex items-center gap-1.5">
+                <span className="size-2.5 rounded-full border border-white bg-[#ff3b30]" aria-hidden />
+                {live.status === "loading"
+                  ? "Loading live hotspots…"
+                  : liveRegion
+                    ? `${fmtInt(liveRegion.hotspots.length)} live VIIRS hotspots, last ${liveDays === "1" ? "24 h" : "7 days"} (NRT, fetched ${liveRegion.fetchedAt.slice(11, 16)} UTC)`
+                    : "Live hotspots unavailable"}
+              </span>
+            )}
           </div>
+          {liveDays !== "0" && live.error && (
+            <p className="px-3 pb-2 text-[11px] text-fire-soft" role="status">
+              {live.error.message}
+            </p>
+          )}
         </Card>
 
         <div className="space-y-6">
@@ -269,6 +350,19 @@ export default function MapPage() {
           )}
         </div>
       </div>
+
+      {region && (
+        <AreaPanel
+          region={region}
+          index={index.data && index.data.regionId === region.id ? index.data : null}
+          viirsFrom={VIIRS_FROM}
+          years={years}
+          area={area}
+          onArea={setArea}
+          drawing={drawing}
+          onDrawing={setDrawing}
+        />
+      )}
     </div>
   );
 }

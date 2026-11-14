@@ -3,6 +3,7 @@ import { AlertTriangle, CheckCircle2, Database, Satellite, Server, Target } from
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Notice, PageHeader } from "@/components/dashboard/primitives";
 import { Pipeline } from "@/components/landing/pipeline";
+import { CoverageText, RegionSummary } from "@/components/dashboard/coverage-text";
 
 export const metadata: Metadata = { title: "About & Methodology" };
 
@@ -100,21 +101,22 @@ export default function AboutPage() {
           <CardContent className="space-y-3 text-sm leading-relaxed text-muted">
             <p>
               For every 10 × 10 km cell and month, the number of fire detections <span className="text-foreground">VIIRS would have
-              made</span>, predicted from what MODIS saw. Where both sensors exist (2013–2024) we can check the prediction against
+              made</span>, predicted from what MODIS saw. Where both sensors exist (<CoverageText field="overlap" />) we can check the prediction against
               the real VIIRS count; for 2000–2012 it rebuilds the record on the VIIRS scale.
             </p>
             <p>
               The model is a per-region VIIRS/MODIS ratio multiplied by a correction learned with gradient-boosted trees, trained
-              on 2013–2020, tuned on 2021 and tested once on 2022–2024.
+              on <CoverageText field="train" /> and tested once on <CoverageText field="test" />. The record runs{" "}
+              <CoverageText field="record" />.
             </p>
             <ul className="space-y-1.5">
               {[
-                "7 study regions on 5 continents, 7 fire types",
+                <RegionSummary key="regions" />,
                 "Vegetation fires only (FIRMS type 0)",
                 "5-model ensemble for an uncertainty band",
                 "Checked against documented fire events",
-              ].map((t) => (
-                <li key={t} className="flex items-center gap-2 text-xs">
+              ].map((t, i) => (
+                <li key={i} className="flex items-center gap-2 text-xs">
                   <CheckCircle2 className="size-3.5 text-success" aria-hidden /> {t}
                 </li>
               ))}

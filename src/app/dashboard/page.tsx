@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { ChartCard, ChartSkeleton, ErrorState, KpiCard, PageHeader } from "@/components/dashboard/primitives";
 import { RegionLines, monthLabel, regionColor } from "@/components/charts/region-charts";
 import { useAsync } from "@/hooks/use-async";
+import { useCoverage } from "@/hooks/use-coverage";
 import { fetchAllCalendars, fetchModelReport, regionLabel, seasonalProfile } from "@/lib/harmonized";
 import { cn, fmtInt } from "@/lib/utils";
 
@@ -20,7 +21,16 @@ const fmtSigned = (v: number) => `${v > 0 ? "+" : v < 0 ? "−" : "±"}${Math.ab
 export default function OverviewPage() {
   const data = useAsync((s) => fetchAllCalendars(VIIRS_FROM, s), []);
   const report = useAsync((s) => fetchModelReport(s), []);
-  const [year, setYear] = useState<number>(2024);
+  const [pickedYear, setYear] = useState<number | null>(null);
+  const cov = useCoverage();
+  // Whole years in the data; the page opens on the newest one.
+  const fullYears = useMemo(
+    () => (data.data ? [...new Set(data.data.flatMap((r) => r.years.map((y) => y.year)))].sort((a, b) => a - b) : []),
+    [data.data],
+  );
+  const year = pickedYear != null && fullYears.includes(pickedYear) ? pickedYear : (fullYears.at(-1) ?? 0);
+  const nRegions = data.data?.length;
+  const span = fullYears.length ? `${fullYears[0]}–${fullYears.at(-1)}` : "";
   const [log, setLog] = useState(true);
   const [focus, setFocus] = useState<string | null>(null);
 
@@ -73,7 +83,7 @@ export default function OverviewPage() {
     <div className="space-y-6">
       <PageHeader
         eyebrow="Overview"
-        title="Fire activity in our 7 study regions"
+        title={nRegions ? `Fire activity in our ${nRegions} study regions` : "Fire activity in our study regions"}
         description="Every number here is on the VIIRS scale: real VIIRS counts from 2013, and the model's VIIRS-equivalent estimate built from MODIS before that. Source: NASA FIRMS active fires, vegetation fires only."
         actions={
           <>
@@ -82,7 +92,7 @@ export default function OverviewPage() {
             </Badge>
             <label className="w-32">
               <span className="sr-only">Year</span>
-              <Select value={String(year)} onValueChange={(v) => setYear(Number(v))}>
+              <Select value={year ? String(year) : ""} onValueChange={(v) => setYear(Number(v))}>
                 <SelectTrigger aria-label="Year">
                   <span className="flex items-center gap-2">
                     <CalendarDays className="size-4 text-primary" aria-hidden />
@@ -113,7 +123,7 @@ export default function OverviewPage() {
           value={view ? fmtInt(view.total) : "—"}
           delta={view && view.prev > 0 ? (view.total - view.prev) / view.prev : null}
           invertDelta
-          hint={`All 7 regions, vs. ${year - 1}${year < VIIRS_FROM ? " · model estimate" : ""}`}
+          hint={`All ${nRegions ?? ""} regions, vs. ${year - 1}${year < VIIRS_FROM ? " · model estimate" : ""}`}
         />
         <KpiCard
           label={`Most active region in ${year}`}
@@ -132,7 +142,7 @@ export default function OverviewPage() {
           hint="Regions where the harmonized 2012 step is within 25% of the real change"
         />
         <KpiCard
-          label="Test error, 2022–2024"
+          label={cov?.testFrom ? `Test error, ${cov.testFrom}–${cov.testTo}` : "Test error"}
           icon={BadgeCheck}
           accent="#2fa98c"
           loading={!report.data}
@@ -144,7 +154,7 @@ export default function OverviewPage() {
       <ChartCard
         demo={false}
         title="Fire detections per year, by region"
-        description="One consistent record per region, 2001–2024. Before 2013 the values are the model's estimate on the VIIRS scale. Hover a region in the table to highlight it."
+        description={`One consistent record per region, ${span}. Before 2013 the values are the model's estimate on the VIIRS scale. Hover a region in the table to highlight it.`}
         actions={
           <Segmented
             ariaLabel="Scale"
@@ -176,7 +186,7 @@ export default function OverviewPage() {
       <ChartCard
         demo={false}
         title={`Regions in ${year}`}
-        description="Compared with each region's own 2013–2024 average (the selected year left out). Click a row to open its calendar."
+        description={`Compared with each region's own ${VIIRS_FROM}–${fullYears.at(-1) ?? ""} average (the selected year left out). Click a row to open its calendar.`}
       >
         {view ? (
           <div className="overflow-x-auto">
