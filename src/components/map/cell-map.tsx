@@ -27,16 +27,38 @@ export interface MapCell {
   label: string;
 }
 
+/**
+ * Keeps the study region framed. Leaflet measures its container once, so when the card
+ * changes size after mount (window resize, sidebar, layout settling while data loads)
+ * the old zoom stays and the region ends up tiny in a corner. Watch the container and
+ * re-measure + re-fit on every size change, and fit again when the region changes.
+ */
 function FitBounds({ bbox }: { bbox: [number, number, number, number] }) {
   const map = useMap();
   useEffect(() => {
-    map.fitBounds(
-      [
-        [bbox[0], bbox[2]],
-        [bbox[1], bbox[3]],
-      ],
-      { padding: [24, 24], animate: true },
-    );
+    const bounds: [[number, number], [number, number]] = [
+      [bbox[0], bbox[2]],
+      [bbox[1], bbox[3]],
+    ];
+    const fit = (animate: boolean) => {
+      const el = map.getContainer();
+      if (!el.clientWidth || !el.clientHeight) return; // hidden or not laid out yet
+      map.invalidateSize({ animate: false });
+      map.fitBounds(bounds, { padding: [24, 24], animate });
+    };
+    fit(false);
+
+    // setTimeout, not requestAnimationFrame: rAF never fires in background tabs.
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const ro = new ResizeObserver(() => {
+      clearTimeout(timer);
+      timer = setTimeout(() => fit(false), 60);
+    });
+    ro.observe(map.getContainer());
+    return () => {
+      clearTimeout(timer);
+      ro.disconnect();
+    };
   }, [map, bbox[0], bbox[1], bbox[2], bbox[3]]); // eslint-disable-line react-hooks/exhaustive-deps
   return null;
 }
