@@ -17,6 +17,14 @@ FireBridge turns 25 years of fire records from two NASA sensors into one consist
 3. A 30-second demo video with English subtitles (or up to 7 slides).
 4. The Space Apps project page.
 
+
+## Latest status (14 Nov, 13:00 Cairo)
+
+- **8 regions** (Argentina La Rioja added), record **Nov 2000 – Dec 2025** live in the app; 2026 (FIRMS Area API, near-real-time, gas flares removed by location) is coded and tested, full run in progress.
+- **Test 2022–2025** (main model): total bias +1.4%, monthly WAPE 11.1%, correlation 0.992; cell deviance 1.30 vs 6.38 for the ratio. The 2012 jump is removed in all 8 regions.
+- **App:** firebridge-brown.vercel.app — calendar with month-vs-median and day picker, trends, fire map with custom areas and live hotspots, analytics, model page, light/dark theme, CSV/PNG export.
+- **Submission:** demo `/FireBridge_Demo.pdf` (7 slides), explainer `/explainer.html`, updated PDFs in `docs/`.
+
 ## Where we are
 
 The data pipeline and the per-detection baseline work end to end; the baseline's main lesson is that it can't be the final model.
