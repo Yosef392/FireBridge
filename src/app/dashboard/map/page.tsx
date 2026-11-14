@@ -6,18 +6,30 @@ import { CellMap, MapLoading } from "@/components/map";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import { Segmented } from "@/components/ui/segmented";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ChartCard, ErrorState, Notice, PageHeader } from "@/components/dashboard/primitives";
-import type { Basemap, LiveHotspot, MapCell } from "@/components/map/cell-map";
-import { AreaPanel } from "@/components/map/area-panel";
+import type { Basemap, DrawTool, LiveHotspot, MapCell } from "@/components/map/cell-map";
+import { AreaPanel, type AreaPart } from "@/components/map/area-panel";
 import { useAsync } from "@/hooks/use-async";
-import { fetchCalendar, fetchCellIndex, fetchCellYear, fetchHarmonizedRegions, regionLabel, type AreaBox } from "@/lib/harmonized";
+import {
+  cellsInShape,
+  fetchCalendar,
+  fetchCellIndex,
+  fetchCellYear,
+  fetchHarmonizedRegions,
+  regionLabel,
+  shapeFromParam,
+  shapeToParam,
+  type AreaShape,
+} from "@/lib/harmonized";
 import { MONTHS_SHORT, RAMP_OPTIONS, rampGradient, setRampName, useRampName } from "@/lib/ramp";
+import { useTheme } from "@/lib/theme";
 import { fmtCompact, fmtInt } from "@/lib/utils";
 import { CsvButton } from "@/components/dashboard/csv-button";
 import { round, slug, toCsv } from "@/lib/csv";
 
 const VIIRS_FROM = 2013;
+const ALL = "ALL";
 type Metric = "harmonized" | "modis" | "viirs";
 
 const METRIC_HELP: Record<Metric, string> = {
@@ -34,122 +46,164 @@ export default function MapPage() {
   const [metric, setMetric] = useState<Metric>("harmonized");
   const [basemap, setBasemap] = useState<Basemap>("dark");
   const ramp = useRampName();
-  const [area, setArea] = useState<AreaBox | null>(null);
-  const [drawing, setDrawing] = useState(false);
+  const theme = useTheme();
+  const [area, setArea] = useState<AreaShape | null>(null);
+  const [tool, setTool] = useState<DrawTool | null>(null);
   const [liveDays, setLiveDays] = useState<"0" | "1" | "7">("0");
 
+  // ?region=<id>|ALL and ?area=<shape> from a shared link.
   useEffect(() => {
     if (!regionId && regions.data?.length) {
-      const wanted = new URLSearchParams(window.location.search).get("region");
-      setRegionId(regions.data.find((r) => r.id === wanted)?.id ?? regions.data[0].id);
+      const q = new URLSearchParams(window.location.search);
+      const wanted = q.get("region");
+      setRegionId(wanted === ALL ? ALL : (regions.data.find((r) => r.id === wanted)?.id ?? regions.data[0].id));
+      setArea(shapeFromParam(q.get("area")));
     }
   }, [regions.data, regionId]);
 
-  const index = useAsync((s) => (regionId ? fetchCellIndex(regionId, s) : Promise.resolve(null)), [regionId]);
-  // Years come from the region's own calendar (newest first): whatever the export covers, nothing hard-coded.
-  const cal = useAsync((s) => (regionId ? fetchCalendar(regionId, s) : Promise.resolve(null)), [regionId]);
-  const years = useMemo(
-    () =>
-      cal.data && cal.data.regionId === regionId
-        ? [...new Set(cal.data.months.filter((m) => m.calendar != null).map((m) => Number(m.month.slice(0, 4))))].sort((a, b) => b - a)
-        : [],
-    [cal.data, regionId],
-  );
-  const year = pickedYear != null && years.includes(pickedYear) ? pickedYear : (years[0] ?? 0);
-  const cellYear = useAsync(
-    (s) => (regionId && year ? fetchCellYear(regionId, year, s) : Promise.resolve(null)),
-    [regionId, year],
-  );
-  const region = regions.data?.find((r) => r.id === regionId) ?? null;
+  // Keep the link in the address bar shareable.
   useEffect(() => {
-    // A drawn area belongs to one region's grid.
-    setArea(null);
-    setDrawing(false);
-  }, [regionId]);
+    if (!regionId) return;
+    const q = new URLSearchParams(window.location.search);
+    q.set("region", regionId);
+    if (area) q.set("area", shapeToParam(area));
+    else q.delete("area");
+    window.history.replaceState(null, "", `${window.location.pathname}?${q.toString()}`);
+  }, [regionId, area]);
 
-  /* ---- live FIRMS hotspots (last 24 h / 7 days), via our server route so the MAP_KEY stays private */
+  const allMode = regionId === ALL;
+  const selected = useMemo(
+    () => (regions.data ? (allMode ? regions.data : regions.data.filter((r) => r.id === regionId)) : []),
+    [regions.data, regionId, allMode],
+  );
+  const selKey = selected.map((r) => r.id).join(",");
+  const region = !allMode ? (selected[0] ?? null) : null;
+
+  const indexes = useAsync((s) => (selected.length ? Promise.all(selected.map((r) => fetchCellIndex(r.id, s))) : Promise.resolve(null)), [selKey]);
+  // Years come from the regions' own calendars (newest first): whatever the export covers, nothing hard-coded.
+  const cals = useAsync((s) => (selected.length ? Promise.all(selected.map((r) => fetchCalendar(r.id, s))) : Promise.resolve(null)), [selKey]);
+  const years = useMemo(() => {
+    if (!cals.data || cals.data.map((c) => c.regionId).join(",") !== selKey) return [];
+    const ys = cals.data.flatMap((c) => c.months.filter((m) => m.calendar != null).map((m) => Number(m.month.slice(0, 4))));
+    return [...new Set(ys)].sort((a, b) => b - a);
+  }, [cals.data, selKey]);
+  const year = pickedYear != null && years.includes(pickedYear) ? pickedYear : (years[0] ?? 0);
+  const cellYears = useAsync(
+    (s) => (selected.length && year ? Promise.all(selected.map((r) => fetchCellYear(r.id, year, s))) : Promise.resolve(null)),
+    [selKey, year],
+  );
+
+  useEffect(() => setTool(null), [selKey]);
+
+  /* ---- live FIRMS hotspots (last 24 h / 7 days), via our server route so the MAP_KEY stays private.
+          One request per region rectangle (the route refuses huge boxes), merged. */
   const live = useAsync(
     async (signal) => {
-      if (liveDays === "0" || !region) return null;
-      const [latMin, latMax, lonMin, lonMax] = region.bbox;
-      const res = await fetch(`/api/hotspots?bbox=${lonMin},${latMin},${lonMax},${latMax}&days=${liveDays}`, { signal });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(body.error ?? `Live hotspots failed (${res.status}).`);
-      return body as { hotspots: LiveHotspot[]; fetchedAt: string; failed: string[] };
+      if (liveDays === "0" || !selected.length) return null;
+      const parts = await Promise.all(
+        selected.map(async (r) => {
+          const [latMin, latMax, lonMin, lonMax] = r.bbox;
+          const res = await fetch(`/api/hotspots?bbox=${lonMin},${latMin},${lonMax},${latMax}&days=${liveDays}`, { signal });
+          const body = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(body.error ?? `Live hotspots failed (${res.status}).`);
+          return body as { hotspots: LiveHotspot[]; fetchedAt: string };
+        }),
+      );
+      return { hotspots: parts.flatMap((p) => p.hotspots), fetchedAt: parts[0]?.fetchedAt ?? new Date().toISOString() };
     },
-    [liveDays, region?.id],
+    [liveDays, selKey],
   );
-  const liveRegion = live.data && liveDays !== "0" ? live.data : null;
+  const liveData = live.data && liveDays !== "0" ? live.data : null;
 
   const metricShown: Metric = metric === "viirs" && year < 2012 ? "harmonized" : metric;
+  const ready =
+    indexes.data &&
+    cellYears.data &&
+    indexes.data.map((i) => i.regionId).join(",") === selKey &&
+    cellYears.data.map((c) => c.regionId).join(",") === selKey &&
+    cellYears.data.every((c) => c.year === year);
 
   const view = useMemo(() => {
-    if (!index.data || !cellYear.data || index.data.regionId !== regionId || cellYear.data.regionId !== regionId || cellYear.data.year !== year)
-      return null;
-    const sums = new Map<number, number>();
-    const monthsUsed = month === "all" ? Object.keys(cellYear.data.months) : [month];
-    for (const mo of monthsUsed) {
-      for (const [c, h, m, v] of cellYear.data.months[mo] ?? []) {
-        const val = metricShown === "modis" ? m : metricShown === "viirs" || year >= VIIRS_FROM ? (v ?? 0) : h;
-        if (val > 0) sums.set(c, (sums.get(c) ?? 0) + val);
-      }
-    }
+    if (!ready) return null;
     const cells: MapCell[] = [];
     /** Every cell with activity (including the sub-1 model estimates hidden on the map), for the CSV. */
-    const exportRows: { cell: number; bounds: [number, number, number, number]; value: number }[] = [];
+    const exportRows: { regionId: string; cell: number; bounds: [number, number, number, number]; value: number }[] = [];
     let total = 0;
     let max = 0;
-    for (const [c, value] of sums) {
-      const b = index.data.cells[c];
-      if (!b) continue;
-      total += value;
-      exportRows.push({ cell: c, bounds: b, value });
-      // Model estimates spread tiny fractions over many cells; only draw cells worth about one detection.
-      if (value < 0.5) continue;
-      max = Math.max(max, value);
-      cells.push({ bounds: b, value, label: `${((b[0] + b[2]) / 2).toFixed(2)}°, ${((b[1] + b[3]) / 2).toFixed(2)}°` });
-    }
-    cells.sort((a, b) => a.value - b.value);
-    const top = [...cells].reverse().slice(0, 6);
+    let cellCount = 0;
+    selected.forEach((r, k) => {
+      const index = indexes.data![k];
+      const cy = cellYears.data![k];
+      cellCount += index.cells.length;
+      const sums = new Map<number, number>();
+      const monthsUsed = month === "all" ? Object.keys(cy.months) : [month];
+      for (const mo of monthsUsed)
+        for (const [c, h, m, v] of cy.months[mo] ?? []) {
+          const val = metricShown === "modis" ? m : metricShown === "viirs" || year >= VIIRS_FROM ? (v ?? 0) : h;
+          if (val > 0) sums.set(c, (sums.get(c) ?? 0) + val);
+        }
+      for (const [c, value] of sums) {
+        const b = index.cells[c];
+        if (!b) continue;
+        total += value;
+        exportRows.push({ regionId: r.id, cell: c, bounds: b, value });
+        // Model estimates spread tiny fractions over many cells; only draw cells worth about one detection.
+        if (value < 0.5) continue;
+        max = Math.max(max, value);
+        const where = `${((b[0] + b[2]) / 2).toFixed(2)}°, ${((b[1] + b[3]) / 2).toFixed(2)}°`;
+        cells.push({ key: `${r.id}:${c}`, bounds: b, value, label: allMode ? `${r.name} · ${where}` : where });
+      }
+    });
+    const top = [...cells].sort((a, b) => b.value - a.value).slice(0, allMode ? 8 : 6);
     exportRows.sort((a, b) => b.value - a.value);
-    return { cells, exportRows, total, max, top, cellCount: index.data.cells.length, gridKm: index.data.gridKm };
-  }, [index.data, cellYear.data, regionId, month, metricShown, year]);
+    return { cells, exportRows, total, max, top, cellCount, gridKm: indexes.data![0]?.gridKm ?? 10 };
+  }, [ready, selected, indexes.data, cellYears.data, month, metricShown, year, allMode]);
 
-  const error = regions.error ?? cal.error ?? index.error ?? cellYear.error;
+  /* ---- the drawn area: which cells it counts, per region */
+  const areaParts = useMemo<AreaPart[] | null>(() => {
+    if (!area || !indexes.data || indexes.data.map((i) => i.regionId).join(",") !== selKey) return null;
+    return selected.map((r, k) => ({ region: r, index: indexes.data![k], cells: cellsInShape(indexes.data![k], area) }));
+  }, [area, indexes.data, selected, selKey]);
+  const highlight = useMemo(
+    () => (areaParts ? new Set(areaParts.flatMap((p) => [...p.cells].map((c) => `${p.region.id}:${c}`))) : undefined),
+    [areaParts],
+  );
+
+  const error = regions.error ?? cals.error ?? indexes.error ?? cellYears.error;
   const period = month === "all" ? String(year) : `${MONTHS_SHORT[Number(month) - 1]} ${year}`;
   const modelled = metricShown === "harmonized" && year < VIIRS_FROM;
-
   const recordLabel = metricShown === "modis" ? "MODIS" : metricShown === "viirs" || year >= VIIRS_FROM ? "VIIRS" : "model";
-  const cellsCsv =
-    view && region
-      ? () => ({
-          filename: `firebridge_${slug(region.id)}_cells_${year}${month === "all" ? "" : `-${month}`}_${metricShown}.csv`,
-          csv: toCsv(
-            [
-              { header: "region_id", value: () => region.id },
-              { header: "period", value: () => (month === "all" ? String(year) : `${year}-${month}`) },
-              { header: "record", value: () => metricShown },
-              { header: "record_source", value: () => recordLabel },
-              { header: "cell_id", value: (r) => r.cell },
-              { header: "lat_center", value: (r) => round((r.bounds[0] + r.bounds[2]) / 2, 4) },
-              { header: "lon_center", value: (r) => round((r.bounds[1] + r.bounds[3]) / 2, 4) },
-              { header: "lat_min", value: (r) => round(r.bounds[0], 4) },
-              { header: "lon_min", value: (r) => round(r.bounds[1], 4) },
-              { header: "lat_max", value: (r) => round(r.bounds[2], 4) },
-              { header: "lon_max", value: (r) => round(r.bounds[3], 4) },
-              { header: "hotspots", value: (r) => round(r.value, 2) },
-            ],
-            view.exportRows,
-          ),
-        })
-      : null;
+  const scopeSlug = allMode ? "all-regions" : region ? slug(region.id) : "";
+
+  const cellsCsv = view
+    ? () => ({
+        filename: `firebridge_${scopeSlug}_cells_${year}${month === "all" ? "" : `-${month}`}_${metricShown}.csv`,
+        csv: toCsv(
+          [
+            { header: "region_id", value: (r) => r.regionId },
+            { header: "period", value: () => (month === "all" ? String(year) : `${year}-${month}`) },
+            { header: "record", value: () => metricShown },
+            { header: "record_source", value: () => recordLabel },
+            { header: "cell_id", value: (r) => r.cell },
+            { header: "lat_center", value: (r) => round((r.bounds[0] + r.bounds[2]) / 2, 4) },
+            { header: "lon_center", value: (r) => round((r.bounds[1] + r.bounds[3]) / 2, 4) },
+            { header: "lat_min", value: (r) => round(r.bounds[0], 4) },
+            { header: "lon_min", value: (r) => round(r.bounds[1], 4) },
+            { header: "lat_max", value: (r) => round(r.bounds[2], 4) },
+            { header: "lon_max", value: (r) => round(r.bounds[3], 4) },
+            { header: "hotspots", value: (r) => round(r.value, 2) },
+          ],
+          view.exportRows,
+        ),
+      })
+    : null;
 
   return (
     <div className="space-y-6">
       <PageHeader
         eyebrow="Fire Map"
         title="Where the fires were"
-        description="Fire detections per 10 km grid cell inside each study region, from NASA FIRMS. Pick a region, a year and optionally one month; hover a cell for its count."
+        description="Fire detections per 10 km grid cell, from NASA FIRMS. Pick one study region or all of them, a year and optionally one month; hover a cell for its count."
         actions={
           <>
             <Badge variant="success">
@@ -165,6 +219,8 @@ export default function MapPage() {
                   </span>
                 </SelectTrigger>
                 <SelectContent>
+                  <SelectItem value={ALL}>All regions ({regions.data?.length ?? "…"})</SelectItem>
+                  <SelectSeparator />
                   {(regions.data ?? []).map((r) => (
                     <SelectItem key={r.id} value={r.id}>
                       {regionLabel(r)}
@@ -239,7 +295,7 @@ export default function MapPage() {
           value={basemap}
           onChange={setBasemap}
           options={[
-            { value: "dark", label: "Dark" },
+            { value: "dark", label: "Map" },
             { value: "satellite", label: "Satellite" },
           ]}
         />
@@ -248,38 +304,37 @@ export default function MapPage() {
       <div className="grid grid-cols-1 gap-6 xl:grid-cols-4">
         <Card className="overflow-hidden p-2 xl:col-span-3">
           {error ? (
-            <ErrorState error={error} onRetry={() => (regions.retry(), index.retry(), cellYear.retry())} height={560} />
-          ) : !view || !region ? (
+            <ErrorState error={error} onRetry={() => (regions.retry(), cals.retry(), indexes.retry(), cellYears.retry())} height={560} />
+          ) : !view ? (
             <MapLoading height="min(68vh, 640px)" />
           ) : (
             <CellMap
               cells={view.cells}
               max={view.max}
-              bbox={region.bbox}
+              boxes={selected.map((r) => r.bbox)}
               basemap={basemap}
               height="min(68vh, 640px)"
               ramp={ramp}
               area={area}
-              drawing={drawing}
-              onAreaDrawn={(box) => {
-                setArea(box);
-                setDrawing(false);
-              }}
-              live={liveRegion?.hotspots ?? []}
+              onArea={setArea}
+              tool={tool}
+              onToolDone={() => setTool(null)}
+              highlight={highlight}
+              live={liveData?.hotspots ?? []}
             />
           )}
           <div className="flex flex-wrap items-center gap-x-6 gap-y-2 px-3 pb-2 pt-3 text-[11px] text-muted">
             <span className="flex items-center gap-2">
               1
-              <span className="h-2 w-40 rounded-full" style={{ background: rampGradient(ramp, 1) }} aria-hidden />
+              <span className="h-2 w-40 rounded-full" style={{ background: rampGradient(ramp, 1, theme) }} aria-hidden />
               {view ? fmtCompact(view.max) : "—"} detections per cell (log scale)
             </span>
             <span className="flex items-center gap-1.5">
-              <span className="h-0 w-5 border-t border-dashed border-white/60" aria-hidden /> Study region
+              <span className="h-0 w-5 border-t border-dashed border-foreground/60" aria-hidden /> Study region{allMode ? "s" : ""}
             </span>
             {area && (
               <span className="flex items-center gap-1.5">
-                <span className="h-0 w-5 border-t-2 border-[#2fd3a4]" aria-hidden /> Your area
+                <span className="h-0 w-5 border-t-2 border-draw" aria-hidden /> Your area (outlined: cells it counts)
               </span>
             )}
             {liveDays !== "0" && (
@@ -287,8 +342,8 @@ export default function MapPage() {
                 <span className="size-2.5 rounded-full border border-white bg-[#ff3b30]" aria-hidden />
                 {live.status === "loading"
                   ? "Loading live hotspots…"
-                  : liveRegion
-                    ? `${fmtInt(liveRegion.hotspots.length)} live VIIRS hotspots, last ${liveDays === "1" ? "24 h" : "7 days"} (NRT, fetched ${liveRegion.fetchedAt.slice(11, 16)} UTC)`
+                  : liveData
+                    ? `${fmtInt(liveData.hotspots.length)} live VIIRS hotspots, last ${liveDays === "1" ? "24 h" : "7 days"} (NRT, fetched ${liveData.fetchedAt.slice(11, 16)} UTC)`
                     : "Live hotspots unavailable"}
               </span>
             )}
@@ -302,7 +357,7 @@ export default function MapPage() {
 
         <div className="space-y-6">
           <ChartCard
-            title={period}
+            title={allMode ? `${period} · all regions` : period}
             description={METRIC_HELP[metricShown]}
             actions={<CsvButton title={`hotspots per 10 km cell, ${period}`} build={cellsCsv} />}
           >
@@ -313,9 +368,7 @@ export default function MapPage() {
               </div>
               <div className="flex justify-between">
                 <dt className="text-muted">Cells with fire</dt>
-                <dd className="font-mono tabular-nums">
-                  {view ? `${fmtInt(view.cells.length)} of ${fmtInt(view.cellCount)}` : "—"}
-                </dd>
+                <dd className="font-mono tabular-nums">{view ? `${fmtInt(view.cells.length)} of ${fmtInt(view.cellCount)}` : "—"}</dd>
               </div>
               <div className="flex justify-between">
                 <dt className="text-muted">Cell size</dt>
@@ -327,12 +380,12 @@ export default function MapPage() {
             )}
           </ChartCard>
 
-          <ChartCard title="Busiest cells" description="Cell centre and detection count">
+          <ChartCard title="Busiest cells" description={allMode ? "Across all regions: region, cell centre and count" : "Cell centre and detection count"}>
             {view && view.top.length ? (
               <ol className="space-y-2 text-xs">
-                {view.top.map((c, i) => (
-                  <li key={i} className="flex justify-between gap-3">
-                    <span className="font-mono text-muted">{c.label}</span>
+                {view.top.map((c) => (
+                  <li key={c.key} className="flex justify-between gap-3">
+                    <span className="min-w-0 font-mono text-muted">{c.label}</span>
                     <span className="font-mono tabular-nums">{fmtInt(c.value)}</span>
                   </li>
                 ))}
@@ -351,16 +404,17 @@ export default function MapPage() {
         </div>
       </div>
 
-      {region && (
+      {selected.length > 0 && (
         <AreaPanel
-          region={region}
-          index={index.data && index.data.regionId === region.id ? index.data : null}
+          scopeLabel={allMode ? "all study regions" : regionLabel(selected[0])}
+          scopeSlug={scopeSlug}
+          parts={areaParts}
           viirsFrom={VIIRS_FROM}
           years={years}
           area={area}
           onArea={setArea}
-          drawing={drawing}
-          onDrawing={setDrawing}
+          tool={tool}
+          onTool={setTool}
         />
       )}
     </div>

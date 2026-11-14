@@ -47,7 +47,7 @@ export function RiskBadge({ risk, className }: { risk: RiskLevel; className?: st
   return (
     <span
       className={cn("inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-medium", className)}
-      style={{ borderColor: `${c}55`, background: `${c}1a`, color: "#e7eef8" }}
+      style={{ borderColor: `${c}55`, background: `${c}1a`, color: "var(--color-foreground)" }}
     >
       <span className="size-1.5 rounded-full" style={{ background: c }} aria-hidden />
       {risk}
@@ -102,7 +102,7 @@ export function KpiCard({
             <span
               className={cn(
                 "inline-flex items-center gap-0.5 rounded px-1 py-px font-medium tabular-nums",
-                bad ? "bg-[#e5484d]/12 text-[#ff8f92]" : "bg-[#2fa98c]/12 text-[#5fd3b2]",
+                bad ? "bg-danger/12 text-bad-fg" : "bg-success/12 text-good-fg",
               )}
             >
               {up ? <TrendingUp className="size-3" aria-hidden /> : <TrendingDown className="size-3" aria-hidden />}
@@ -189,10 +189,10 @@ export function ErrorState({ error, onRetry, height = 280 }: { error: Error; onR
   return (
     <div
       role="alert"
-      className="flex flex-col items-center justify-center rounded-xl border border-[#e5484d]/30 bg-[#e5484d]/5 px-6 text-center"
+      className="flex flex-col items-center justify-center rounded-xl border border-danger/30 bg-danger/5 px-6 text-center"
       style={{ minHeight: height }}
     >
-      <AlertTriangle className="size-7 text-[#ff8f92]" aria-hidden />
+      <AlertTriangle className="size-7 text-bad-fg" aria-hidden />
       <p className="mt-3 text-sm font-medium">Couldn’t load data</p>
       <p className="mt-1 max-w-sm text-xs leading-relaxed text-muted">{error.message}</p>
       {onRetry && (
@@ -209,7 +209,7 @@ export function Notice({ children, tone = "demo" }: { children: React.ReactNode;
     <div
       className={cn(
         "flex items-start gap-3 rounded-xl border px-4 py-3 text-xs leading-relaxed",
-        tone === "demo" ? "border-fire-soft/25 bg-fire-soft/[0.06] text-[#f3d3a6]" : "border-primary/25 bg-primary/[0.06] text-[#b9d7ff]",
+        tone === "demo" ? "border-fire-soft/25 bg-fire-soft/[0.06] text-warn-fg" : "border-primary/25 bg-primary/[0.06] text-info-fg",
       )}
     >
       {tone === "demo" ? <FlaskConical className="mt-0.5 size-4 shrink-0" aria-hidden /> : <Info className="mt-0.5 size-4 shrink-0" aria-hidden />}
@@ -237,7 +237,7 @@ export function ChartTooltip({
   if (!active || !payload?.length) return null;
   const total = payload.reduce((s, p) => s + (Number(p.value) || 0), 0);
   return (
-    <div className="min-w-40 rounded-lg border border-border-strong bg-[#0d1d33]/95 px-3 py-2 text-xs shadow-xl shadow-black/40 backdrop-blur">
+    <div className="min-w-40 rounded-lg border border-border-strong bg-tooltip/95 px-3 py-2 text-xs shadow-xl shadow-black/20 backdrop-blur">
       {label != null && <p className="mb-1.5 font-medium text-foreground">{labelFormatter ? labelFormatter(String(label)) : label}</p>}
       <ul className="space-y-1">
         {payload.map((p) => (

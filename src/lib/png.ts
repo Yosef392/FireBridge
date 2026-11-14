@@ -5,10 +5,15 @@
  * Every image gets a title, a source line and the dashboard background so it reads on its own.
  */
 
-const BG = "#0b1a2e";
-const FG = "#e7eef8";
-const MUTED = "#8ea2bf";
+import { CHART_THEMES } from "./colors";
+import { currentTheme } from "./theme";
+
 const FONT = "Inter, system-ui, sans-serif";
+/** Background, text and muted colours of the theme the page is shown in. */
+const frameColors = () => {
+  const c = CHART_THEMES[currentTheme()];
+  return { BG: c.background, FG: c.foreground, MUTED: c.muted };
+};
 export const PNG_SCALE = 2; // retina-sharp output
 
 export function downloadCanvas(canvas: HTMLCanvasElement, filename: string) {
@@ -27,6 +32,7 @@ export function downloadCanvas(canvas: HTMLCanvasElement, filename: string) {
 
 /** Canvas with background, title and footer; returns the context and the drawable area below the title. */
 export function framedCanvas(width: number, height: number, title: string, subtitle?: string) {
+  const { BG, FG, MUTED } = frameColors();
   const header = subtitle ? 58 : 40;
   const footer = 28;
   const canvas = document.createElement("canvas");
@@ -73,7 +79,7 @@ export async function downloadSvgChart(root: HTMLElement, filename: string, titl
   // Legend items rendered as HTML next to the chart: copy their labels and colours onto the image.
   const legend = [...root.querySelectorAll<HTMLElement>("[data-legend-item]")].map((el) => ({
     label: el.innerText.trim(),
-    color: el.dataset.legendItem ?? FG,
+    color: el.dataset.legendItem ?? frameColors().FG,
   }));
   // Lay the legend out in rows that fit the chart width (measured with a scratch canvas).
   const measure = document.createElement("canvas").getContext("2d")!;
@@ -91,6 +97,7 @@ export async function downloadSvgChart(root: HTMLElement, filename: string, titl
     lx += w;
   }
   const legendH = legend.length ? (row + 1) * 18 + 6 : 0;
+  const { FG } = frameColors();
 
   const f = framedCanvas(width, height + legendH, title, subtitle);
   f.ctx.font = `11px ${FONT}`;

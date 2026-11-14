@@ -221,7 +221,7 @@ export default function OverviewPage() {
                       </td>
                       <td className="py-2.5 pr-3 text-muted">{t.region.fireType}</td>
                       <td className="py-2.5 pr-3 text-right font-mono tabular-nums">{fmtInt(t.thisYear)}</td>
-                      <td className={cn("py-2.5 pr-3 text-right font-mono tabular-nums", t.vsAvg > 25 ? "text-[#ff8f92]" : t.vsAvg < -25 ? "text-[#5fd3b2]" : "text-muted")}>
+                      <td className={cn("py-2.5 pr-3 text-right font-mono tabular-nums", t.vsAvg > 25 ? "text-bad-fg" : t.vsAvg < -25 ? "text-good-fg" : "text-muted")}>
                         {fmtSigned(t.vsAvg)}
                       </td>
                       <td className="py-2.5 pr-3 text-muted">{monthLabel(t.peak + 1)}</td>

@@ -5,7 +5,7 @@ import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis
 import { ChartCard, ChartSkeleton, ChartTooltip, ErrorState, Notice } from "@/components/dashboard/primitives";
 import { CsvButton } from "@/components/dashboard/csv-button";
 import { useAsync } from "@/hooks/use-async";
-import { CHART } from "@/lib/colors";
+import { useChart } from "@/lib/colors";
 import { round, slug, toCsv } from "@/lib/csv";
 import { dailyRange, dayView, fetchDaily, type HarmonizedRegion } from "@/lib/harmonized";
 import { cn, fmtCompact, fmtInt } from "@/lib/utils";
@@ -17,6 +17,7 @@ const pct = (v: number) => `${v >= 0 ? "+" : "−"}${Math.abs(v * 100).toFixed(0
  * day by day. Reads daily_<region>.json from notebook 5; explains how to get it when it's missing.
  */
 export function DailyPanel({ region }: { region: HarmonizedRegion }) {
+  const CHART = useChart();
   const daily = useAsync((s) => fetchDaily(region.id, s), [region.id]);
   const [picked, setPicked] = useState<string | null>(null);
   const file = daily.data && daily.data.regionId === region.id ? daily.data : null;
@@ -64,7 +65,7 @@ export function DailyPanel({ region }: { region: HarmonizedRegion }) {
               max={range?.last}
               value={date ?? ""}
               onChange={(e) => e.target.value && setPicked(e.target.value)}
-              className="h-8 rounded-lg border border-border-strong bg-surface/60 px-2 font-mono text-xs text-foreground [color-scheme:dark] focus:border-primary/60 focus:outline-none disabled:opacity-50"
+              className="h-8 rounded-lg border border-border-strong bg-surface/60 px-2 font-mono text-xs text-foreground focus:border-primary/60 focus:outline-none disabled:opacity-50"
             />
           </label>
           <CsvButton title="daily hotspots, whole record" build={csv} />
@@ -127,7 +128,7 @@ export function DailyPanel({ region }: { region: HarmonizedRegion }) {
                   interval="preserveStartEnd"
                 />
                 <YAxis stroke={CHART.axis} tick={{ fill: CHART.muted, fontSize: 10 }} tickLine={false} axisLine={false} width={40} tickFormatter={(v: number) => fmtCompact(v)} />
-                <Tooltip content={<ChartTooltip valueFormatter={(v) => (Number.isFinite(v) ? fmtInt(v) : "—")} />} cursor={{ fill: "rgba(148,178,219,0.08)" }} />
+                <Tooltip content={<ChartTooltip valueFormatter={(v) => (Number.isFinite(v) ? fmtInt(v) : "—")} />} cursor={{ fill: CHART.grid }} />
                 <Bar dataKey="value" name="Hotspots" isAnimationActive={false} radius={[2, 2, 0, 0]} onClick={(d: { date?: string }) => d?.date && setPicked(d.date)}>
                   {view.month.map((d) => (
                     <Cell key={d.date} cursor="pointer" fill={d.date === view.date ? "#ff7a2f" : d.source === "model" ? "rgba(76,158,255,0.45)" : "rgba(76,158,255,0.8)"} />

@@ -22,7 +22,7 @@ Optional, for live hotspots on the Fire Map: copy `.env.example` to `.env.local`
 | `/` | Landing page: hero globe, problem/solution, methodology, features, data sources, team |
 | `/dashboard` | Overview: KPIs, detections time series, monthly & seasonal charts, regional distribution, risk mix, recent hotspots |
 | `/dashboard/calendar` | Harmonized burning-activity calendar per study region (Fire / Viridis / Cividis colour scales), **this month vs. the historical median** (rank, 25–75% range), **pick a day** (needs `daily_*.json`), yearly totals with a Theil–Sen **trend** and Mann–Kendall test, test scores, anomalies. CSV and PNG export. |
-| `/dashboard/map` | Hotspots per 10 km cell by year/month, **your own area** (drag a box or type lat/lon → calendar, trend, CSV, PNG for that box), **live FIRMS VIIRS hotspots** (last 24 h / 7 days, Suomi NPP + NOAA-20 + NOAA-21). CSV export. |
+| `/dashboard/map` | Hotspots per 10 km cell by year/month for one region or **all regions at once** (one fast canvas layer), **your own area**: draw a box, polygon or circle (or type a box / centre + radius), reshape or move it afterwards, works across regions, shows km², per-region breakdown, calendar, trend, CSV and PNG; the area is kept in the link (`?area=`) to share. **Live FIRMS VIIRS hotspots** (last 24 h / 7 days, Suomi NPP + NOAA-20 + NOAA-21). CSV export. |
 | `/dashboard/analytics` | VIIRS ÷ MODIS ratio per region, fire seasons (hemisphere-aligned), good and bad years, region profiles. CSV and PNG export. |
 | `/dashboard/model` | Model scores, 2012 jump check, leave-one-region-out test |
 | `/dashboard/about` | Workflow, MODIS/VIIRS, limitations |

@@ -3,7 +3,8 @@
 import { useMemo } from "react";
 import { Area, Bar, BarChart, CartesianGrid, Cell, ComposedChart, Line, ReferenceArea, ReferenceLine, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ChartTooltip, Legend } from "@/components/dashboard/primitives";
-import { CHART } from "@/lib/colors";
+import { CHART_THEMES, useChart } from "@/lib/colors";
+import { currentTheme, useTheme } from "@/lib/theme";
 import { MONTH_LABELS } from "@/lib/dates";
 import { metricValue, type CalendarMetric, type CalendarMonth, type Trend, type YearRow } from "@/lib/harmonized";
 import { fmtCompact, fmtInt } from "@/lib/utils";
@@ -48,6 +49,8 @@ export function CalendarHeatmap({
   }, [months, metric, viirsFrom]);
 
   const ramp = useRampName();
+  const theme = useTheme();
+  const CHART = CHART_THEMES[theme];
   const scale = (v: number) => (max > 0 ? Math.log1p(v) / Math.log1p(max) : 0);
   const evStart = eventStart?.slice(0, 7);
   const evEnd = eventEnd?.slice(0, 7);
@@ -87,9 +90,9 @@ export function CalendarHeatmap({
                     }
                     className={`h-[18px] rounded-[3px] ${y === viirsFrom ? "mt-[3px]" : ""}`}
                     style={{
-                      background: v == null ? "transparent" : rampColor(scale(v), ramp),
-                      border: v == null ? "1px dashed rgba(148,178,219,0.15)" : undefined,
-                      outline: inEvent ? "1.5px solid #ffffff" : undefined,
+                      background: v == null ? "transparent" : rampColor(scale(v), ramp, theme),
+                      border: v == null ? `1px dashed ${CHART.grid}` : undefined,
+                      outline: inEvent ? `1.5px solid ${CHART.foreground}` : undefined,
                       outlineOffset: inEvent ? "-1.5px" : undefined,
                       opacity: modelled ? 0.92 : 1,
                     }}
@@ -103,7 +106,7 @@ export function CalendarHeatmap({
       <div className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-[11px] text-muted">
         <span className="flex items-center gap-2">
           0
-          <span className="h-2 w-40 rounded-full" style={{ background: rampGradient(ramp) }} aria-hidden />
+          <span className="h-2 w-40 rounded-full" style={{ background: rampGradient(ramp, 0, theme) }} aria-hidden />
           {fmtCompact(max)} detections / month (log scale)
         </span>
         {evStart && (
@@ -155,6 +158,8 @@ export function downloadCalendarPng({
   const top = 18;
   const gridW = left + 12 * (cw + gap);
   const legendH = metric === "calendar" ? 58 : 40;
+  const theme = currentTheme();
+  const C = CHART_THEMES[theme];
   const f = framedCanvas(gridW, top + years.length * (ch + gap) + legendH, title, subtitle);
   const { ctx } = f;
   const scale = (v: number) => (max > 0 ? Math.log1p(v) / Math.log1p(max) : 0);
@@ -162,25 +167,25 @@ export function downloadCalendarPng({
   const ev1 = eventEnd?.slice(0, 7);
   ctx.font = "10px ui-monospace, monospace";
   ctx.textAlign = "center";
-  ctx.fillStyle = "#7f93b0";
+  ctx.fillStyle = C.muted;
   MONTH_LABELS.forEach((l, i) => ctx.fillText(l, f.x + left + i * (cw + gap) + cw / 2, f.y + 10));
   years.forEach((y, r) => {
     const yy = f.y + top + r * (ch + gap);
     ctx.textAlign = "right";
-    ctx.fillStyle = y === viirsFrom ? "#e7eef8" : "#7f93b0";
+    ctx.fillStyle = y === viirsFrom ? C.foreground : C.muted;
     ctx.fillText(String(y), f.x + left - 8, yy + ch - 4);
     byYear.get(y)!.forEach((m, i) => {
       const x = f.x + left + i * (cw + gap);
       const v = m ? metricValue(m, metric, viirsFrom) : null;
       if (v == null) {
-        ctx.strokeStyle = "rgba(148,178,219,0.2)";
+        ctx.strokeStyle = C.grid;
         ctx.strokeRect(x + 0.5, yy + 0.5, cw - 1, ch - 1);
         return;
       }
-      ctx.fillStyle = rampColor(scale(v), ramp);
+      ctx.fillStyle = rampColor(scale(v), ramp, theme);
       ctx.fillRect(x, yy, cw, ch);
       if (m && ev0 && ev1 && m.month >= ev0 && m.month <= ev1) {
-        ctx.strokeStyle = "#ffffff";
+        ctx.strokeStyle = C.foreground;
         ctx.lineWidth = 1.5;
         ctx.strokeRect(x + 0.75, yy + 0.75, cw - 1.5, ch - 1.5);
         ctx.lineWidth = 1;
@@ -191,17 +196,17 @@ export function downloadCalendarPng({
   const ly = f.y + top + years.length * (ch + gap) + 16;
   const grad = ctx.createLinearGradient(f.x + 24, 0, f.x + 224, 0);
   const stops = 16;
-  for (let i = 0; i <= stops; i++) grad.addColorStop(i / stops, rampColor(i / stops, ramp));
+  for (let i = 0; i <= stops; i++) grad.addColorStop(i / stops, rampColor(i / stops, ramp, theme));
   ctx.fillStyle = grad;
   ctx.fillRect(f.x + 24, ly, 200, 8);
   ctx.textAlign = "left";
-  ctx.fillStyle = "#c7d3e6";
+  ctx.fillStyle = C.text;
   ctx.font = "11px Inter, system-ui, sans-serif";
   ctx.fillText("0", f.x + 12, ly + 8);
   ctx.fillText(`${fmtCompact(max)} detections / month (log scale)`, f.x + 232, ly + 8);
   if (metric === "calendar") {
-    ctx.fillStyle = "#8ea2bf";
-    ctx.fillText(`Before ${viirsFrom}: model estimate on the VIIRS scale · from ${viirsFrom}: real VIIRS · white outline: known event`, f.x + 12, ly + 26);
+    ctx.fillStyle = C.muted;
+    ctx.fillText(`Before ${viirsFrom}: model estimate on the VIIRS scale · from ${viirsFrom}: real VIIRS · outline: known event`, f.x + 12, ly + 26);
   }
   downloadCanvas(f.canvas, filename);
 }
@@ -222,6 +227,9 @@ export function YearlyHarmonizedChart({
   /** Theil–Sen trend over the harmonized record, drawn as a dashed line. */
   trend?: Trend | null;
 }) {
+  const CHART = useChart();
+  // VIIRS is drawn near-white on dark; on light it has to be near-black to show.
+  const HC = { ...HARMONIZED_COLORS, viirs: CHART.foreground };
   const withTrend = rows.map((r) => ({
     ...r,
     trend: trend && r.year >= trend.from && r.year <= trend.to ? Math.max(trend.intercept + trend.slope * r.year, log ? 1 : 0) : null,
@@ -241,11 +249,11 @@ export function YearlyHarmonizedChart({
       <div className="mb-3">
         <Legend
           items={[
-            { label: "Harmonized (VIIRS scale)", color: HARMONIZED_COLORS.harmonized },
-            { label: "VIIRS (actual)", color: HARMONIZED_COLORS.viirs },
-            { label: "Raw join: MODIS then VIIRS", color: HARMONIZED_COLORS.raw },
-            { label: "MODIS (raw)", color: HARMONIZED_COLORS.modis },
-            ...(trend ? [{ label: "Trend (Theil–Sen)", color: HARMONIZED_COLORS.trend }] : []),
+            { label: "Harmonized (VIIRS scale)", color: HC.harmonized },
+            { label: "VIIRS (actual)", color: HC.viirs },
+            { label: "Raw join: MODIS then VIIRS", color: HC.raw },
+            { label: "MODIS (raw)", color: HC.modis },
+            ...(trend ? [{ label: "Trend (Theil–Sen)", color: HC.trend }] : []),
           ]}
         />
       </div>
@@ -267,11 +275,12 @@ export function YearlyHarmonizedChart({
             />
             <Tooltip
               content={<ChartTooltip valueFormatter={(v) => (Number.isFinite(v) ? fmtInt(v) : "—")} />}
-              cursor={{ stroke: "rgba(148,178,219,0.35)" }}
+              cursor={{ stroke: CHART.axis, strokeOpacity: 0.5 }}
             />
             <ReferenceLine
               x={viirsFrom}
-              stroke="rgba(231,238,248,0.45)"
+              stroke={CHART.foreground}
+              strokeOpacity={0.45}
               strokeDasharray="4 4"
               label={{ value: "VIIRS starts", position: "insideTopLeft", fill: CHART.muted, fontSize: 11 }}
             />
@@ -279,16 +288,16 @@ export function YearlyHarmonizedChart({
               dataKey="band"
               name="Model band (10–90%)"
               stroke="none"
-              fill={HARMONIZED_COLORS.band}
+              fill={HC.band}
               fillOpacity={0.18}
               isAnimationActive={false}
               legendType="none"
             />
-            <Line dataKey="modis" name="MODIS (raw)" stroke={HARMONIZED_COLORS.modis} strokeWidth={1.5} dot={false} isAnimationActive={false} connectNulls={false} />
+            <Line dataKey="modis" name="MODIS (raw)" stroke={HC.modis} strokeWidth={1.5} dot={false} isAnimationActive={false} connectNulls={false} />
             <Line
               dataKey="raw"
               name="Raw join"
-              stroke={HARMONIZED_COLORS.raw}
+              stroke={HC.raw}
               strokeWidth={1.5}
               strokeDasharray="5 4"
               dot={false}
@@ -297,9 +306,9 @@ export function YearlyHarmonizedChart({
             <Line
               dataKey="viirs"
               name="VIIRS (actual)"
-              stroke={HARMONIZED_COLORS.viirs}
+              stroke={HC.viirs}
               strokeWidth={2}
-              dot={{ r: 2.5, fill: HARMONIZED_COLORS.viirs, stroke: CHART.surface, strokeWidth: 1 }}
+              dot={{ r: 2.5, fill: HC.viirs, stroke: CHART.surface, strokeWidth: 1 }}
               isAnimationActive={false}
               connectNulls={false}
             />
@@ -307,7 +316,7 @@ export function YearlyHarmonizedChart({
               <Line
                 dataKey="trend"
                 name="Trend"
-                stroke={HARMONIZED_COLORS.trend}
+                stroke={HC.trend}
                 strokeWidth={1.5}
                 strokeDasharray="6 4"
                 dot={false}
@@ -318,9 +327,9 @@ export function YearlyHarmonizedChart({
             <Line
               dataKey="harmonized"
               name="Harmonized"
-              stroke={HARMONIZED_COLORS.harmonized}
+              stroke={HC.harmonized}
               strokeWidth={2.5}
-              dot={{ r: 3, fill: HARMONIZED_COLORS.harmonized, stroke: CHART.surface, strokeWidth: 1.5 }}
+              dot={{ r: 3, fill: HC.harmonized, stroke: CHART.surface, strokeWidth: 1.5 }}
               isAnimationActive={false}
             />
           </ComposedChart>
@@ -351,6 +360,7 @@ export function MonthHistoryChart({
   p75: number;
   height?: number;
 }) {
+  const CHART = useChart();
   return (
     <div style={{ height }}>
       <ResponsiveContainer width="100%" height="100%">
@@ -360,12 +370,12 @@ export function MonthHistoryChart({
           <YAxis stroke={CHART.axis} tick={{ fill: CHART.muted, fontSize: 10 }} tickLine={false} axisLine={false} width={44} tickFormatter={(v: number) => fmtCompact(v)} />
           <Tooltip
             content={<ChartTooltip valueFormatter={(v) => (Number.isFinite(v) ? fmtInt(v) : "—")} />}
-            cursor={{ fill: "rgba(148,178,219,0.08)" }}
+            cursor={{ fill: CHART.grid }}
           />
           <ReferenceArea y1={p25} y2={p75} fill="#4c9eff" fillOpacity={0.1} stroke="none" ifOverflow="extendDomain" />
           <ReferenceLine
             y={median}
-            stroke="#e7eef8"
+            stroke={CHART.foreground}
             strokeDasharray="4 4"
             label={{ value: "median", position: "insideTopRight", fill: CHART.muted, fontSize: 10 }}
           />
