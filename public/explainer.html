@@ -1,0 +1,735 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FireBridge Explained</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Source+Sans+3:ital,wght@0,400;0,600;1,400&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+/* Layout: one reading column (~760px) with wide figures breaking out to ~1100px; numbered chapters down the page. */
+:root {
+  --bg: #f6f4f1;
+  --panel: #ffffff;
+  --ink: #1b2230;
+  --muted: #5b6475;
+  --line: #dcd8d2;
+  --fire: #d4541c;      /* VIIRS / real fire */
+  --model: #2d6fd6;     /* harmonized model */
+  --modis: #b07a12;     /* raw MODIS / raw join */
+  --good: #1f8a5b;
+  --bad: #c2353b;
+  --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --body: "Source Sans 3", "Segoe UI", system-ui, sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, Menlo, Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f141c; --panel: #161d28; --ink: #e8ecf2; --muted: #9aa5b6; --line: #2a3443;
+    --fire: #f07a3e; --model: #6aa5ff; --modis: #e0b14a; --good: #4cc48d; --bad: #f0686d;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f141c; --panel: #161d28; --ink: #e8ecf2; --muted: #9aa5b6; --line: #2a3443;
+  --fire: #f07a3e; --model: #6aa5ff; --modis: #e0b14a; --good: #4cc48d; --bad: #f0686d;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--ink); font: 400 17px/1.6 var(--body); }
+a { color: var(--model); }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--model); outline-offset: 2px; }
+.wrap { max-width: 1120px; margin: 0 auto; padding: 0 20px; }
+.col { max-width: 760px; }
+header.top { padding: 56px 0 28px; border-bottom: 1px solid var(--line); }
+.kicker { font: 600 12px/1.4 var(--mono); letter-spacing: .14em; text-transform: uppercase; color: var(--fire); }
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; line-height: 1.15; margin: 0; }
+h1 { font-size: clamp(34px, 5.4vw, 58px); font-weight: 700; margin-top: 10px; letter-spacing: -0.01em; }
+h2 { font-size: clamp(26px, 3.4vw, 36px); font-weight: 700; }
+h3 { font-size: 20px; font-weight: 700; margin-top: 28px; }
+.lede { font-size: 20px; color: var(--muted); margin: 16px 0 0; max-width: 62ch; }
+.meta { margin-top: 18px; font-size: 14px; color: var(--muted); }
+nav.toc { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 22px; font-size: 14px; }
+nav.toc a { color: var(--ink); text-decoration: none; border-bottom: 1px solid var(--line); }
+nav.toc a span { font-family: var(--mono); color: var(--muted); margin-right: 4px; }
+section.ch { padding: 56px 0 8px; }
+.chno { font: 600 13px var(--mono); color: var(--muted); margin-bottom: 6px; }
+p { margin: 14px 0; max-width: 68ch; }
+.small { font-size: 14px; color: var(--muted); }
+code, .num { font-family: var(--mono); font-size: .88em; }
+.tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 12px; margin-top: 28px; }
+.tile { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; }
+.tile b { display: block; font: 700 30px/1.1 var(--display); font-variant-numeric: tabular-nums; }
+.tile span { font-size: 14px; color: var(--muted); }
+figure { margin: 26px 0; background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 18px; }
+figure svg { display: block; width: 100%; height: auto; }
+figcaption { font-size: 14px; color: var(--muted); margin-top: 10px; max-width: 80ch; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--muted); margin: 4px 0 8px; }
+.legend i { display: inline-block; width: 18px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+.legend i.dash { background: repeating-linear-gradient(90deg, var(--modis) 0 5px, transparent 5px 8px) !important; }
+.two { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 16px; }
+.two > figure { margin: 0; }
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.tabs button { font: 600 13px var(--body); padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); background: transparent; color: var(--ink); cursor: pointer; }
+.tabs button[aria-pressed="true"] { background: var(--ink); color: var(--bg); border-color: var(--ink); }
+.scroll { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 15px; }
+th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-size: 12px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); font-weight: 600; }
+td.r, th.r { text-align: right; font-variant-numeric: tabular-nums; font-family: var(--mono); font-size: 14px; white-space: nowrap; }
+tr.main td { font-weight: 600; }
+.pos { color: var(--bad); } .neg { color: var(--good); }
+.callout { border-left: 4px solid var(--fire); background: var(--panel); padding: 14px 18px; border-radius: 0 10px 10px 0; margin: 22px 0; max-width: 72ch; }
+.callout.blue { border-color: var(--model); }
+.eq { font-family: var(--mono); font-size: 15px; background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 12px 16px; overflow-x: auto; white-space: pre; margin: 14px 0; max-width: 760px; }
+.imp { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 14px; margin-top: 18px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; }
+.card h4 { font: 700 16px/1.3 var(--display); margin: 0 0 6px; }
+.card p { font-size: 15px; margin: 6px 0; }
+.tag { display: inline-block; font: 600 11px var(--mono); text-transform: uppercase; letter-spacing: .08em; padding: 2px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); margin-right: 6px; }
+.tag.hi { color: var(--bad); border-color: var(--bad); }
+.tag.md { color: var(--modis); border-color: var(--modis); }
+.tag.lo { color: var(--good); border-color: var(--good); }
+.objectives { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-top: 16px; }
+.objectives .card b { font-family: var(--display); }
+img.plot { width: 100%; height: auto; border-radius: 6px; background: #fff; }
+footer { margin-top: 60px; padding: 28px 0 48px; border-top: 1px solid var(--line); font-size: 14px; color: var(--muted); }
+svg text { font-family: var(--body); fill: currentColor; }
+svg .mono { font-family: var(--mono); }
+@media (prefers-reduced-motion: no-preference) { .tabs button { transition: background .15s; } }
+@media (max-width: 520px) { body { font-size: 16px; } .tile b { font-size: 26px; } figure { padding: 12px; } }
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="wrap">
+    <div class="kicker">NASA Space Apps Challenge 2026 · Harmonization of MODIS and VIIRS Hot Spots</div>
+    <h1>FireBridge, explained</h1>
+    <p class="lede">Two NASA satellites count fires differently, so the 25-year fire record has a fake jump in 2012. FireBridge learns the difference from the years both sensors overlap and rebuilds the older years on the newer sensor's scale, giving one consistent record for eight very different fire regions.</p>
+    <p class="meta">Team: Youssef Waheed, Salma Salah, Ali Abdou, Amira Azzam, Youssef Medhat · Results as of 14 November 2026 (8 regions, data through Dec 2025) · Live app: <a href="https://firebridge-brown.vercel.app">firebridge-brown.vercel.app</a></p>
+    <div class="tiles" aria-label="Headline numbers">
+      <div class="tile"><b>8 / 8</b><span>regions where the fake 2012 jump is removed (harmonized step within 25% of the real change)</span></div>
+      <div class="tile"><b>11.1%</b><span>monthly error on 2022–2025, years the model never trained on</span></div>
+      <div class="tile"><b>+1.4%</b><span>total bias on those test years; correlation 0.992</span></div>
+      <div class="tile"><b>2000–2025</b><span>one consistent monthly record in 10 × 10 km cells (2026 being added)</span></div>
+    </div>
+    <nav class="toc" aria-label="Chapters">
+      <a href="#problem"><span>01</span>The problem</a>
+      <a href="#data"><span>02</span>Data &amp; regions</a>
+      <a href="#pipeline"><span>03</span>Pipeline</a>
+      <a href="#v1"><span>04</span>Version 1</a>
+      <a href="#v2"><span>05</span>Version 2 model</a>
+      <a href="#numbers"><span>06</span>The numbers</a>
+      <a href="#explore"><span>07</span>Explore a region</a>
+      <a href="#app"><span>08</span>Web app</a>
+      <a href="#improve"><span>09</span>What to improve</a>
+    </nav>
+  </div>
+</header>
+
+<main class="wrap">
+
+<!-- 01 PROBLEM -->
+<section class="ch" id="problem">
+  <div class="chno">01</div>
+  <h2>The problem: a jump that never happened</h2>
+  <div class="col">
+    <p>NASA's MODIS instruments (on Terra and Aqua) have recorded active fires since November 2000. VIIRS on Suomi NPP joined in 2012 with pixels about seven times smaller in area. A fire MODIS records as one hot pixel can show up as several VIIRS pixels, and small fires MODIS misses entirely become visible.</p>
+    <p>Join the two records naively, MODIS until 2012 and VIIRS after, and fire activity seems to multiply overnight. In the Nile Delta the raw record jumps 9.4×, while the real change, measured by MODIS alone on both sides, is 1.2×. Anyone reading trends from the joined record, whether a scientist, a land manager or an emergency planner, would be misled.</p>
+  </div>
+  <figure>
+    <svg viewBox="0 0 960 300" role="img" aria-label="The same fire seen by one 1 km MODIS pixel and by several 375 m VIIRS pixels">
+      <defs>
+        <radialGradient id="fireg" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#ffd27a"/><stop offset=".6" stop-color="#f07a3e"/><stop offset="1" stop-color="#d4541c" stop-opacity=".0"/></radialGradient>
+        <marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker>
+      </defs>
+      <g style="color:var(--muted)">
+        <text x="160" y="28" text-anchor="middle" font-size="15" font-weight="600" style="fill:var(--ink)">MODIS · 1 km pixels</text>
+        <text x="480" y="28" text-anchor="middle" font-size="15" font-weight="600" style="fill:var(--ink)">VIIRS · 375 m pixels</text>
+        <text x="800" y="28" text-anchor="middle" font-size="15" font-weight="600" style="fill:var(--ink)">What the counts say</text>
+      </g>
+      <!-- MODIS grid 3x3 of 60px -->
+      <g transform="translate(70,60)">
+        <ellipse cx="96" cy="100" rx="34" ry="24" fill="url(#fireg)"/>
+        <ellipse cx="34" cy="160" rx="10" ry="8" fill="url(#fireg)"/>
+        <g fill="none" stroke="currentColor" style="color:var(--line)" stroke-width="1.5">
+          <rect x="0" y="0" width="180" height="180"/><line x1="60" y1="0" x2="60" y2="180"/><line x1="120" y1="0" x2="120" y2="180"/><line x1="0" y1="60" x2="180" y2="60"/><line x1="0" y1="120" x2="180" y2="120"/>
+        </g>
+        <rect x="60" y="60" width="60" height="60" fill="none" stroke="var(--modis)" stroke-width="3"/>
+        <text x="90" y="206" text-anchor="middle" font-size="13">1 detection</text>
+        <text x="34" y="150" text-anchor="middle" font-size="10" style="fill:var(--muted)">missed</text>
+      </g>
+      <!-- VIIRS grid: 180/22.5 = 8 cells of 22.5 -->
+      <g transform="translate(390,60)">
+        <ellipse cx="96" cy="100" rx="34" ry="24" fill="url(#fireg)"/>
+        <ellipse cx="34" cy="160" rx="10" ry="8" fill="url(#fireg)"/>
+        <g fill="none" stroke="currentColor" style="color:var(--line)" stroke-width="1">
+          <rect x="0" y="0" width="180" height="180"/>
+          <path d="M22.5 0V180M45 0V180M67.5 0V180M90 0V180M112.5 0V180M135 0V180M157.5 0V180M0 22.5H180M0 45H180M0 67.5H180M0 90H180M0 112.5H180M0 135H180M0 157.5H180"/>
+        </g>
+        <g fill="none" stroke="var(--fire)" stroke-width="2.5">
+          <rect x="67.5" y="90" width="22.5" height="22.5"/><rect x="90" y="90" width="22.5" height="22.5"/><rect x="112.5" y="90" width="22.5" height="22.5"/><rect x="90" y="67.5" width="22.5" height="22.5"/><rect x="22.5" y="157.5" width="22.5" height="22.5"/>
+        </g>
+        <text x="90" y="206" text-anchor="middle" font-size="13">5 detections</text>
+      </g>
+      <!-- counts -->
+      <g transform="translate(660,70)">
+        <line x1="20" y1="150" x2="290" y2="150" stroke="currentColor" style="color:var(--line)"/>
+        <rect x="40" y="120" width="60" height="30" fill="var(--modis)"/>
+        <rect x="120" y="0" width="60" height="150" fill="var(--fire)"/>
+        <text x="70" y="112" text-anchor="middle" font-size="13" class="mono">1</text>
+        <text x="150" y="-6" text-anchor="middle" font-size="13" class="mono">5</text>
+        <text x="70" y="170" text-anchor="middle" font-size="12">MODIS</text>
+        <text x="150" y="170" text-anchor="middle" font-size="12">VIIRS</text>
+        <text x="205" y="70" font-size="13" style="fill:var(--ink)">same fires,</text>
+        <text x="205" y="88" font-size="13" style="fill:var(--ink)">5× the count</text>
+      </g>
+    </svg>
+    <figcaption>Schematic. Smaller VIIRS pixels split one fire into several detections and also catch small fires that MODIS misses. How many VIIRS detections one MODIS detection stands for depends on the kind of fire, so no single factor fixes the record.</figcaption>
+  </figure>
+  <figure>
+    <div class="legend"><span><i class="dash"></i>Raw join (MODIS, then VIIRS)</span><span><i style="background:var(--modis);opacity:.55"></i>MODIS</span><span><i style="background:var(--fire)"></i>VIIRS (real)</span><span><i style="background:var(--model)"></i>FireBridge estimate before 2013</span></div>
+    <div id="jumpfig"></div>
+    <figcaption>Nile Delta, Egypt: yearly vegetation-fire detections (log scale). The dashed raw join leaps at the switch; the harmonized record (blue) continues smoothly into real VIIRS. Every region is in chapter 07.</figcaption>
+  </figure>
+</section>
+
+<!-- 02 DATA -->
+<section class="ch" id="data">
+  <div class="chno">02</div>
+  <h2>Data and study regions</h2>
+  <div class="col">
+    <p>All data comes from <a href="https://firms.modaps.eosdis.nasa.gov">NASA FIRMS</a>, which publishes yearly active-fire CSV files per country and sensor. Each row is one hot pixel: position, date and time, satellite, brightness temperatures, fire radiative power (FRP, MW), pixel size (scan × track km), confidence, day/night and a type code.</p>
+  </div>
+  <div class="scroll"><table>
+    <thead><tr><th>Sensor</th><th>Satellites</th><th>Pixel size</th><th>Years</th><th>Confidence</th></tr></thead>
+    <tbody>
+      <tr><td><b>MODIS</b> Collection 6.1</td><td>Terra (~10:30 local), Aqua (~13:30)</td><td>1 km at nadir, up to ~4.8 km at the swath edge</td><td>Nov 2000 →</td><td>0–100</td></tr>
+      <tr><td><b>VIIRS</b> 375 m</td><td>Suomi NPP (~13:30)</td><td>375 m at nadir, up to ~0.8 km</td><td>Jan 2012 →</td><td>low / nominal / high</td></tr>
+    </tbody>
+  </table></div>
+  <div class="col">
+    <h3>Cleaning rules the data taught us</h3>
+    <p><b>Vegetation fires only.</b> FIRMS type 2 marks static industrial heat, mostly gas flares: 68.6% of Egypt's VIIRS rows and 31.0% of its MODIS rows. We keep type 0 only. <b>The ratio is not constant:</b> in the Nile Delta VIIRS records 7 to 21 detections per MODIS detection depending on the year. <b>Aqua and Suomi NPP fly together:</b> the median gap between an Aqua detection and VIIRS seeing the same fire is about 22 minutes, while Terra passes about 3 hours earlier.</p>
+    <h3>Eight regions, eight fire types</h3>
+    <p>The team's dataset plan picks regions with very different fires, each with a documented event that serves as a check. FIRMS only offers whole-country files, so each country is downloaded and cut to the region's rectangle.</p>
+  </div>
+  <figure>
+    <div id="mapfig"></div>
+    <figcaption>Study-region rectangles on a latitude–longitude frame (equirectangular, graticule every 30°). Rectangles are drawn to scale.</figcaption>
+  </figure>
+  <div class="scroll"><table id="regiontable">
+    <thead><tr><th>Region</th><th>Fire type</th><th>Known event (validation check)</th><th class="r">MODIS detections</th><th class="r">VIIRS detections</th></tr></thead>
+    <tbody></tbody>
+  </table></div>
+  <p class="small">Vegetation-fire detections in the run: MODIS 2001–2025, VIIRS 2013–2025.</p>
+</section>
+
+<!-- 03 PIPELINE -->
+<section class="ch" id="pipeline">
+  <div class="chno">03</div>
+  <h2>The pipeline: five notebooks to a live app</h2>
+  <figure>
+    <svg viewBox="0 0 1040 250" role="img" aria-label="Data flows from NASA FIRMS through five Colab notebooks and Google Drive into static JSON files read by the Next.js app on Vercel">
+      <defs><marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+      <g style="color:var(--muted)" font-size="13">
+        <g>
+          <rect x="10" y="80" width="120" height="70" rx="8" fill="none" stroke="var(--fire)" stroke-width="2"/>
+          <text x="70" y="110" text-anchor="middle" font-weight="600" style="fill:var(--ink)">NASA FIRMS</text>
+          <text x="70" y="130" text-anchor="middle" font-size="12">yearly CSVs</text>
+        </g>
+        <g id="nbs"></g>
+        <rect x="900" y="80" width="130" height="70" rx="8" fill="none" stroke="var(--model)" stroke-width="2"/>
+        <text x="965" y="110" text-anchor="middle" font-weight="600" style="fill:var(--ink)">Next.js app</text>
+        <text x="965" y="130" text-anchor="middle" font-size="12">on Vercel</text>
+        <line x1="130" y1="115" x2="160" y2="115" stroke="currentColor" stroke-width="1.5" marker-end="url(#ar2)"/>
+        <line x1="870" y1="115" x2="898" y2="115" stroke="currentColor" stroke-width="1.5" marker-end="url(#ar2)"/>
+        <text x="884" y="104" text-anchor="middle" font-size="11">JSON</text>
+        <rect x="160" y="200" width="710" height="34" rx="6" fill="none" stroke="currentColor" stroke-dasharray="4 4"/>
+        <text x="515" y="222" text-anchor="middle" font-size="12">Google Drive · Parquet files (hive layout: sensor / country / year) · every step resumes after a crash</text>
+      </g>
+    </svg>
+    <figcaption>Each notebook has one cell with all its functions and small cells that use them. Notebooks 1–2 run on Colab CPU, notebook 4 trains on a Colab GPU. Notebook 5 writes about 15 MB of JSON that the app reads directly, so there is no backend to keep alive.</figcaption>
+  </figure>
+  <div class="col">
+    <h3>Engineering decisions that mattered</h3>
+    <p><b>Parquet + DuckDB.</b> Loading every country into pandas crashed Colab's memory. Each file is now converted on its own with DuckDB (38 MB of Egypt CSVs became 2.9 MB of Parquet) and analysis queries only what it needs. <b>Retry on false "not found".</b> FIRMS sometimes answers 404 for files that exist, which silently dropped years; downloads now retry three times and the listing reports any missing years. <b>Reproducibility.</b> DuckDB returns rows in no fixed order, which changed model results between runs; tables are sorted before training and every model has a fixed seed. <b>Two bugs found and fixed:</b> region names were compared in lowercase, which zeroed the region features, and an early run included whole countries that contain the study regions, which double-counted fires.</p>
+  </div>
+</section>
+
+<!-- 04 V1 -->
+<section class="ch" id="v1">
+  <div class="chno">04</div>
+  <h2>Version 1: converting detections one by one</h2>
+  <div class="col">
+    <p>The first approach asked: for one MODIS detection, how many VIIRS detections did the same fire produce? Aqua detections were matched with VIIRS detections within ±50 minutes and inside the MODIS pixel's own footprint plus 0.5 km, each VIIRS detection counted once for its nearest MODIS pixel. Seven models were compared, from the average ratio to XGBoost and a small neural network with Poisson loss; on Egypt and Portugal, XGBoost reached a deviance of 1.62 against 2.78 for the ratio.</p>
+    <p>It still could not work as a harmonization, for three reasons:</p>
+  </div>
+  <div class="two">
+    <figure>
+      <div id="blindfig"></div>
+      <figcaption>The blind spot: share of VIIRS detections with no MODIS pixel nearby at the same overpass. A model that converts MODIS detections can never add these fires back.</figcaption>
+    </figure>
+    <div class="card" style="align-self:start">
+      <h4>Fire type matters</h4>
+      <p>Trained only on Portugal, the model overpredicted Egypt by 84%; trained only on Egypt, it underpredicted Portugal by 71%.</p>
+      <h4 style="margin-top:14px">Terra is left out</h4>
+      <p>Matching needs Aqua's timing, but before mid-2002 only Terra exists.</p>
+      <h4 style="margin-top:14px">The lesson</h4>
+      <p>Model <b>totals per area and month</b>, using every MODIS detection from both satellites as input. That is version 2.</p>
+    </div>
+  </div>
+</section>
+
+<!-- 05 V2 -->
+<section class="ch" id="v2">
+  <div class="chno">05</div>
+  <h2>Version 2: harmonization per 10 km cell and month</h2>
+  <div class="col">
+    <p>Every detection is placed on an equal-area grid (EPSG:6933, EASE-Grid 2.0) of 10 × 10 km cells, so each cell covers the same ground at every latitude. For every cell that ever burned and every month from 2000 to 2025, the model predicts how many detections VIIRS would have made, using only what MODIS saw. Months with no MODIS detection are kept: they are how the model learns the blind spot.</p>
+  </div>
+  <div class="eq">x = R · k₀ · λ        y = R · sin φ / k₀        R = 6,371,007.181 m,  k₀ = cos 30°
+cell = ( ⌊x / 10 000⌋ , ⌊y / 10 000⌋ )</div>
+  <h3>The main model: a ratio times a learned correction</h3>
+  <figure>
+    <svg viewBox="0 0 1000 230" role="img" aria-label="MODIS count times the region ratio gives a starting value, which a gradient-boosted correction scales up or down to give the VIIRS-equivalent count">
+      <defs><marker id="ar3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="currentColor"/></marker></defs>
+      <g style="color:var(--muted)" font-size="13">
+        <rect x="10" y="30" width="170" height="64" rx="8" fill="none" stroke="var(--modis)" stroke-width="2"/>
+        <text x="95" y="58" text-anchor="middle" font-weight="600" style="fill:var(--ink)">MODIS count m</text>
+        <text x="95" y="78" text-anchor="middle" font-size="12">cell, month</text>
+        <rect x="10" y="130" width="170" height="64" rx="8" fill="none" stroke="currentColor"/>
+        <text x="95" y="158" text-anchor="middle" font-weight="600" style="fill:var(--ink)">Region ratio r, z</text>
+        <text x="95" y="178" text-anchor="middle" font-size="12">from 2013–2020</text>
+        <rect x="270" y="80" width="200" height="64" rx="8" fill="none" stroke="currentColor"/>
+        <text x="370" y="106" text-anchor="middle" font-weight="600" style="fill:var(--ink)">Start: b = r·m</text>
+        <text x="370" y="126" text-anchor="middle" font-size="12">or z if MODIS saw nothing</text>
+        <rect x="270" y="0" width="200" height="56" rx="8" fill="none" stroke="currentColor" stroke-dasharray="4 4"/>
+        <text x="370" y="24" text-anchor="middle" font-weight="600" style="fill:var(--ink)">17 MODIS-only features</text>
+        <text x="370" y="42" text-anchor="middle" font-size="12">FRP, pixel size, neighbours, season…</text>
+        <rect x="560" y="60" width="200" height="104" rx="8" fill="none" stroke="var(--model)" stroke-width="2"/>
+        <text x="660" y="92" text-anchor="middle" font-weight="600" style="fill:var(--ink)">XGBoost, Poisson</text>
+        <text x="660" y="112" text-anchor="middle" font-size="12">learns correction exp(f)</text>
+        <text x="660" y="132" text-anchor="middle" font-size="12">log b passed as offset</text>
+        <text x="660" y="150" text-anchor="middle" font-size="12">× 5 bootstrap models</text>
+        <rect x="830" y="80" width="160" height="64" rx="8" fill="none" stroke="var(--fire)" stroke-width="2"/>
+        <text x="910" y="106" text-anchor="middle" font-weight="600" style="fill:var(--ink)">μ = b · exp(f)</text>
+        <text x="910" y="126" text-anchor="middle" font-size="12">VIIRS-equivalent</text>
+        <path d="M180 62 C 225 62, 225 100, 268 106" fill="none" stroke="currentColor" stroke-width="1.5" marker-end="url(#ar3)"/>
+        <path d="M180 162 C 225 162, 225 124, 268 118" fill="none" stroke="currentColor" stroke-width="1.5" marker-end="url(#ar3)"/>
+        <line x1="470" y1="112" x2="558" y2="112" stroke="currentColor" stroke-width="1.5" marker-end="url(#ar3)"/>
+        <text x="514" y="104" text-anchor="middle" font-size="11">offset</text>
+        <path d="M470 28 C 520 28, 520 80, 558 84" fill="none" stroke="currentColor" stroke-width="1.5" marker-end="url(#ar3)"/>
+        <line x1="760" y1="112" x2="828" y2="112" stroke="currentColor" stroke-width="1.5" marker-end="url(#ar3)"/>
+        <text x="370" y="222" text-anchor="middle" font-size="12">the ratio carries the scale, so record months still scale with MODIS</text>
+      </g>
+    </svg>
+    <figcaption>Model C, the main model. The trees only learn how far to move the ratio's answer up or down in each cell and month (for example near burning neighbours, or under large edge-of-swath MODIS pixels), not the whole count.</figcaption>
+  </figure>
+  <div class="eq">b  = r_a · m + 1[m = 0] · z_a + 0.001
+log μ = log b + f(x)        loss = Σ ( μ − y · log μ )      (Poisson)</div>
+  <div class="col">
+    <p><b>Three models are compared.</b> A: the region's average VIIRS/MODIS ratio. B: plain gradient boosting with Poisson loss, which fits cells well but cannot go far beyond the largest values it saw. C: the ratio × a learned correction. Settings for B and C: 800 trees, learning rate 0.05, depth 6, min child weight 5, 80% row and feature sampling, L2 = 2, on a GPU.</p>
+  </div>
+  <h3>Inputs, all from MODIS</h3>
+  <div class="scroll"><table>
+    <thead><tr><th>Feature</th><th>What it measures</th><th>Why it helps</th></tr></thead>
+    <tbody>
+      <tr><td><code>modis_count</code>, <code>terra_count</code>, <code>aqua_count</code></td><td>Detections in the cell that month, total and per satellite</td><td>The main signal; covers the Terra-only years</td></tr>
+      <tr><td><code>frp_sum</code>, <code>frp_max</code>, <code>frp_mean</code></td><td>Fire radiative power (MW)</td><td>Big fires spread over more 375 m pixels</td></tr>
+      <tr><td><code>pixel_area_mean</code></td><td>Mean MODIS pixel area, scan × track</td><td>Edge-of-swath pixels dilute small fires</td></tr>
+      <tr><td><code>day_share</code></td><td>Share of daytime detections</td><td>Day and night detection differ</td></tr>
+      <tr><td><code>nb_count</code></td><td>Detections in the 8 neighbouring cells</td><td>Activity nearby that MODIS may have missed here</td></tr>
+      <tr><td><code>cell_mean</code>, <code>cell_month_mean</code></td><td>The cell's long-run average, overall and for that calendar month</td><td>Separates crop-burning cells from quiet ones; the cell's own season</td></tr>
+      <tr><td><code>month_sin</code>, <code>month_cos</code></td><td>Time of year</td><td>Season, with December next to January</td></tr>
+      <tr><td><code>region_*</code> (7)</td><td>Which region the cell is in</td><td>Fire type; dropped when testing an unseen region</td></tr>
+    </tbody>
+  </table></div>
+  <div class="col">
+    <h3>From predictions to a calendar</h3>
+    <p>Five copies of model C, each trained on a bootstrap resample of 2013–2025, predict every cell-month. Their mean is the harmonized value; the 10th–90th percentile of their regional sums is the band. The calendar shows <b>real VIIRS from 2013 and the model before</b>. Two checks turn it into evidence: the 2012 jump check (VIIRS 2013–15 ÷ harmonized 2009–11 should match MODIS 2013–15 ÷ MODIS 2009–11), and anomaly z-scores of each month against the same month in other years, leaving the known event year out of the baseline.</p>
+  </div>
+</section>
+
+<!-- 06 NUMBERS -->
+<section class="ch" id="numbers">
+  <div class="chno">06</div>
+  <h2>The numbers</h2>
+  <div class="col">
+    <p>The split is by year, never random, so one fire never lands in both training and test. Models are compared on 2021 and scored once on 2022–2025. The current year, 2026, will be harmonized and shown but never scored.</p>
+  </div>
+  <figure>
+    <div id="splitfig"></div>
+    <figcaption>How the years are used across the eight regions. 2000–2012 has no VIIRS target: those are the years the model fills in.</figcaption>
+  </figure>
+  <div class="col"><h3>How we measure</h3>
+    <p><b>Cell deviance</b>: Poisson deviance per 10 km cell-month, the fit the map depends on (lower is better). <b>Total bias</b>: how far the summed count is off. <b>Monthly WAPE</b>: the typical miss on a region's monthly total, as a share of the real count. <b>Monthly correlation</b>: whether the ups and downs match.</p>
+  </div>
+  <div class="two">
+    <figure><div id="scorefig"></div><figcaption>Test years 2022–2025, all regions. Both learned models fit cells nearly 5× better than the ratio; on monthly totals all three are good, with plain boosting slightly ahead.</figcaption></figure>
+    <div class="scroll" style="align-self:start"><table id="scoretable">
+      <thead><tr><th>Model</th><th class="r">Set</th><th class="r">Cell dev.</th><th class="r">Bias</th><th class="r">WAPE</th><th class="r">Corr.</th></tr></thead>
+      <tbody></tbody>
+    </table></div>
+  </div>
+  <h3>Every region, test years (main model)</h3>
+  <figure>
+    <div id="regionfig"></div>
+    <figcaption>Total bias (left) and monthly error (right) per region on 2022–2025. The Nile Delta has the largest bias (+15%): its 2025 season was quieter than the model expected.</figcaption>
+  </figure>
+
+  <h3>Does the 2012 jump disappear?</h3>
+  <figure>
+    <div class="legend"><span><i style="background:var(--modis)"></i>Raw join</span><span><i style="background:var(--muted)"></i>Real change (MODIS on both sides)</span><span><i style="background:var(--model)"></i>Harmonized</span></div>
+    <div id="jumpcheck"></div>
+    <figcaption>Change from 2009–11 to 2013–15, log scale. The harmonized dot should sit on the real-change dot; the raw join sits far to the right.</figcaption>
+  </figure>
+  <h3>A region the model has never seen</h3>
+  <figure>
+    <div id="lorofig"></div>
+    <figcaption>Leave-one-region-out: trained on seven regions, total bias on the eighth. Similar fire types transfer well (Indonesia, NSW); tiny crop fires (Nile Delta) and rare large forest fires (Portugal) do not.</figcaption>
+  </figure>
+  <h3>Do the known events stand out?</h3>
+  <div class="scroll"><table id="anomtable">
+    <thead><tr><th>Region</th><th>Known event</th><th>Top months found</th><th>Verdict</th></tr></thead>
+    <tbody></tbody>
+  </table></div>
+  <div class="callout blue"><b>Reading the numbers honestly.</b> Model C was designed after an earlier two-region run, so those two regions' test years influenced the choice. The five regions added later act as a fresh check: there the main model's bias stays within ±15%, and La Rioja, added last, is within 1%. On monthly totals plain boosting (B) is slightly better on these test years; we keep C because it is anchored to the ratio and scales with record months larger than anything in training.</div>
+</section>
+
+<!-- 07 EXPLORE -->
+<section class="ch" id="explore">
+  <div class="chno">07</div>
+  <h2>Explore a region</h2>
+  <div class="tabs" id="regtabs" role="group" aria-label="Choose a region"></div>
+  <div class="two">
+    <figure><div class="legend"><span><i class="dash"></i>Raw join</span><span><i style="background:var(--model)"></i>Harmonized</span><span><i style="background:var(--fire)"></i>VIIRS</span></div><div id="exyear"></div><figcaption id="excap1"></figcaption></figure>
+    <figure><div id="excal"></div><figcaption id="excap2"></figcaption></figure>
+  </div>
+  <div class="tiles" id="extiles"></div>
+</section>
+
+<!-- 08 APP -->
+<section class="ch" id="app">
+  <div class="chno">08</div>
+  <h2>The web app</h2>
+  <div class="col"><p>A Next.js and TypeScript app reads the exported JSON directly and is hosted on Vercel at <a href="https://firebridge-brown.vercel.app">firebridge-brown.vercel.app</a>. Every push to the repository redeploys it.</p></div>
+  <div class="scroll"><table>
+    <thead><tr><th>Page</th><th>What it shows</th></tr></thead>
+    <tbody>
+      <tr><td><b>Overview</b></td><td>Totals for the eight regions in any year, each region's record 2001–2025, usual peak month, busiest year and 2012 jump</td></tr>
+      <tr><td><b>Calendar</b></td><td>The burning-activity calendar per region with a Harmonized / Raw join / MODIS / VIIRS switch, the known event outlined, yearly totals with the model band, the jump check, scores and top anomalies</td></tr>
+      <tr><td><b>Fire Map</b></td><td>Detections per 10 km cell for any region, year and month, on dark or satellite basemaps</td></tr>
+      <tr><td><b>Analytics</b></td><td>VIIRS ÷ MODIS ratio per region and year, fire seasons with hemispheres aligned, good and bad years</td></tr>
+      <tr><td><b>Model</b></td><td>The method in four steps, test scores, jump check, unseen-region results and the inputs</td></tr>
+      <tr><td><b>About</b></td><td>Data sources, architecture and limitations</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- 09 IMPROVE -->
+<section class="ch" id="improve">
+  <div class="chno">09</div>
+  <h2>What can be improved</h2>
+  <div class="col"><p>The challenge asks for a harmonized MODIS–VIIRS hot-spot record and a burning-activity calendar that responders, scientists and land managers can trust. Measured against those goals, here is where FireBridge stands and what would move it furthest. Priority reflects impact on those goals against effort.</p></div>
+  <div class="objectives">
+    <div class="card"><b>A harmonized record</b><p class="small">Done for counts in 8 regions; jump removed everywhere. Gaps: FRP is not harmonized, NOAA-20/21 unused.</p></div>
+    <div class="card"><b>A burning-activity calendar</b><p class="small">Done per region, monthly, 2001–2025; 2026 being added. Gaps: fixed regions only, no season-onset or trend statistics.</p></div>
+    <div class="card"><b>Something users can trust</b><p class="small">Held-out tests and event checks done. Gaps: the band is too narrow, no independent ground truth, weak on unseen fire types.</p></div>
+  </div>
+
+  <h3>Make the harmonization more accurate</h3>
+  <div class="imp">
+    <div class="card"><span class="tag hi">High</span><span class="tag">Trust</span><h4>Calibrate the uncertainty band</h4><p>The band shows only how much five models disagree, so it is far narrower than the real 11.1% error. Replace it with conformal or quantile intervals calibrated on held-out years, and report how often the truth falls inside.</p></div>
+    <div class="card"><span class="tag hi">High</span><span class="tag">Record</span><h4>Remove the floor in quiet months</h4><p>Where MODIS saw nothing, the model starts from the region's average blind-spot count, so it rarely predicts zero and quiet months before 2013 look busier than after (Canada's winters). A two-part hurdle model, first "any fire?" then "how many?", would fix this.</p></div>
+    <div class="card"><span class="tag hi">High</span><span class="tag">Trust</span><h4>Handle new fire types</h4><p>Held out, the Nile Delta is −52% and Portugal +76%. Swap the 7 region flags for descriptors that exist anywhere (land cover from MCD12Q1, typical fire size, cropland share, climate zone) and add more regions such as Punjab and California so the model learns fire types, not region names.</p></div>
+    <div class="card"><span class="tag md">Medium</span><span class="tag">Record</span><h4>Get the extremes right</h4><p>Record months are still low (Portugal, September 2024: about 4,000 predicted vs 5,765 real). Weight large months more, try a Tweedie or tail-aware loss, and test specifically on the top 1% of months.</p></div>
+    <div class="card"><span class="tag md">Medium</span><span class="tag">Record</span><h4>Harmonize fire radiative power too</h4><p>Counts depend on pixel size; FRP measures energy and is closer to what responders and emission scientists need. Apply the same cell-month approach to FRP sums and compare with published MODIS–VIIRS FRP calibrations.</p></div>
+    <div class="card"><span class="tag md">Medium</span><span class="tag">Record</span><h4>Use every VIIRS satellite</h4><p>NOAA-20 (2018) and NOAA-21 (2023) carry VIIRS too. Adding them gives more overpasses and a cross-check of the target itself.</p></div>
+    <div class="card"><span class="tag lo">Lower</span><span class="tag">Trust</span><h4>Test the Terra-only years</h4><p>2000–2002 rely on Terra alone. Simulate them in the overlap years by hiding Aqua and measuring the error, and check whether Terra and Aqua's late-life orbit drift changes the learned relationship.</p></div>
+    <div class="card"><span class="tag lo">Lower</span><span class="tag">Trust</span><h4>Explain the corrections</h4><p>Export SHAP values or gain importance from every run, so users can see why a cell was scaled up, for example by its burning neighbours.</p></div>
+  </div>
+
+  <h3>Make the calendar more useful</h3>
+  <div class="imp">
+    <div class="card"><span class="tag hi">High</span><span class="tag">Trust</span><h4>Validate against independent records</h4><p>Compare the harmonized record with burned-area products (MODIS MCD64A1, VIIRS burned area) and national fire statistics (Portugal ICNF, Canada CWFIS). Agreement there is stronger evidence than agreement with VIIRS alone.</p></div>
+    <div class="card"><span class="tag hi">High</span><span class="tag">Calendar</span><h4>Any place on Earth</h4><p>Run the pipeline globally on a 0.25° grid and let users draw their own area, instead of eight fixed rectangles that also include slices of neighbouring land.</p></div>
+    <div class="card"><span class="tag md">Medium</span><span class="tag">Calendar</span><h4>Season and trend statistics</h4><p>Report fire-season start, peak and length per year, and test long-term trends (Mann–Kendall, Sen's slope) on the harmonized record, which is only possible now that the 2012 jump is gone.</p></div>
+    <div class="card"><span class="tag md">Medium</span><span class="tag">Users</span><h4>Keep it current</h4><p>Schedule a monthly job that pulls new FIRMS data, appends it, and flags months that are already unusual against the 25-year baseline: an early signal for responders.</p></div>
+    <div class="card"><span class="tag md">Medium</span><span class="tag">Users</span><h4>Let people take the data</h4><p>CSV and NetCDF downloads of the harmonized record with its band, plus a small API, so scientists can use it in their own analyses.</p></div>
+    <div class="card"><span class="tag lo">Lower</span><span class="tag">Users</span><h4>Reach more users</h4><p>Arabic and other languages, a simpler mobile view, and short guidance on reading model estimates versus observations.</p></div>
+  </div>
+</section>
+
+<footer>
+  <div class="col">FireBridge · NASA Space Apps Challenge 2026 · Team: Youssef Waheed, Salma Salah, Ali Abdou, Amira Azzam, Youssef Medhat. Data: NASA FIRMS active fires, MODIS Collection 6.1 and VIIRS S-NPP 375 m, vegetation fires only. A research prototype, not an operational fire-warning system.</div>
+</footer>
+</main>
+
+<script>
+const DATA = {"regions":[{"id":"Guinea_Kankan_Siguiri","name":"Kankan Siguiri","country":"Guinea","fireType":"Agricultural and seasonal savanna burning","event":["2019-12","2020-05"],"bbox":[8.5,12.5,-10.8,-7.6],"hemi":"N","years":[[2001,11025,null,64762,63501,66171,64762],[2002,23422,null,100817,99671,102070,100817],[2003,35322,null,149101,148640,149577,149101],[2004,35784,null,150171,149639,150674,150171],[2005,40554,null,161929,161226,162519,161929],[2006,42345,null,169039,168426,169664,169039],[2007,42185,null,169437,168775,170085,169437],[2008,44453,null,173441,172762,174000,173441],[2009,40304,null,162720,162181,163229,162720],[2010,38082,null,156878,156413,157360,156878],[2011,39931,null,162146,161603,162715,162146],[2012,40078,null,163075,162476,163630,163075],[2013,39919,160762,161682,161200,162164,160762],[2014,40709,164717,166314,165518,167184,164717],[2015,35581,147674,150362,149926,150821,147674],[2016,36009,153910,151626,151153,152093,153910],[2017,41082,167547,165078,164488,165615,167547],[2018,33368,132930,143395,142906,143847,132930],[2019,38288,162274,158996,158454,159575,162274],[2020,39274,162617,161349,160819,161969,162617],[2021,30679,133255,136704,136293,137087,133255],[2022,32760,140693,142510,142060,142942,140693],[2023,31511,142930,139997,139470,140556,142930],[2024,35601,157389,152329,151948,152753,157389],[2025,21790,114230,111073,110597,111537,114230]],"cal":[21758.2,16204.6,8221.3,3358.0,748.0,117.1,40.9,26.4,23.7,839.8,3482.9,9940.9,19225.0,12191.9,6949.0,3382.4,788.8,119.4,66.3,26.4,25.8,1085.8,11960.3,44996.3,40106.0,28450.0,29100.0,8814.6,1667.2,139.2,41.5,26.4,25.2,1094.5,7742.5,31893.6,42289.8,28820.6,26346.7,8628.8,1932.0,155.5,43.0,27.1,24.8,2090.2,11271.0,28541.4,41321.0,26792.7,25944.9,7257.0,1382.3,116.8,41.8,26.4,24.3,2156.7,13221.1,43643.6,41461.8,31285.4,29297.2,8861.2,1366.0,125.8,45.0,26.4,26.2,928.4,16378.8,39237.2,45469.0,38593.1,33329.7,8632.0,1463.4,197.2,43.9,27.3,23.7,811.1,7007.1,33839.5,51801.1,29860.2,25156.6,9986.9,1482.4,139.9,40.9,27.2,25.7,1074.8,14420.9,39424.1,44995.1,27400.5,28782.7,11223.5,1216.7,141.0,40.9,26.4,25.8,1138.0,10813.4,36915.9,53789.5,28210.6,23946.8,7521.0,1463.7,124.7,41.9,26.4,23.7,878.5,10802.6,30048.7,44522.5,42010.9,18640.3,8419.9,1306.2,145.8,43.7,26.4,25.4,1384.3,9392.8,36228.0,54258.9,33055.1,29107.6,6869.8,1275.5,122.5,40.9,26.4,23.7,984.8,5602.0,31707.7,47640.0,36579.0,19319.0,7768.0,1388.0,167.0,13.0,1.0,19.0,660.0,11241.0,35967.0,33233.0,49633.0,30472.0,7806.0,1010.0,96.0,4.0,1.0,19.0,1804.0,10182.0,30457.0,39023.0,28821.0,33640.0,7495.0,948.0,55.0,12.0,1.0,9.0,347.0,10160.0,27163.0,46935.0,35531.0,25545.0,6803.0,1220.0,169.0,3.0,3.0,2.0,1047.0,8282.0,28370.0,45826.0,32113.0,25203.0,9107.0,722.0,115.0,11.0,4.0,25.0,5162.0,13800.0,35459.0,46645.0,29126.0,17702.0,5345.0,1578.0,130.0,5.0,2.0,2.0,613.0,6555.0,25227.0,44956.0,36264.0,25943.0,11519.0,1368.0,166.0,7.0,0,4.0,1000.0,8675.0,32372.0,43410.0,42536.0,22342.0,6997.0,1294.0,91.0,3.0,0,7.0,2772.0,15638.0,27527.0,47176.0,26348.0,17090.0,5797.0,1238.0,209.0,15.0,6.0,5.0,561.0,7678.0,27132.0,50451.0,31392.0,19242.0,6044.0,1356.0,142.0,2.0,1.0,8.0,1639.0,7891.0,22525.0,42441.0,35219.0,21811.0,6584.0,947.0,72.0,15.0,3.0,13.0,642.0,8154.0,27029.0,49006.0,37781.0,20015.0,7320.0,1697.0,82.0,4.0,7.0,5.0,756.0,9672.0,31044.0,35741.0,25020.0,16831.0,8413.0,676.0,105.0,7.0,6.0,6.0,1519.0,6277.0,19629.0]},{"id":"Portugal_Centro","name":"Centro","country":"Portugal","fireType":"Mediterranean forest wildfire","event":["2017-06","2017-10"],"bbox":[39.2,41.0,-9.0,-6.8],"hemi":"N","years":[[2001,712,null,1558,1500,1628,1558],[2002,995,null,2335,2263,2399,2335],[2003,3293,null,9359,9159,9541,9359],[2004,734,null,1596,1538,1653,1596],[2005,4457,null,12019,11771,12234,12019],[2006,665,null,1618,1597,1642,1618],[2007,353,null,914,889,941,914],[2008,308,null,702,684,719,702],[2009,820,null,2011,1974,2049,2011],[2010,1245,null,3329,3271,3392,3329],[2011,758,null,1912,1883,1938,1912],[2012,1281,null,3200,3093,3295,3200],[2013,1411,3696,3860,3764,3956,3696],[2014,165,491,477,462,491,491],[2015,551,1437,1312,1278,1348,1437],[2016,1805,5253,4980,4835,5125,5253],[2017,4339,12641,12085,11571,12527,12641],[2018,141,352,418,407,429,352],[2019,435,1282,1117,1069,1169,1282],[2020,599,1590,1701,1615,1786,1590],[2021,189,414,521,507,536,414],[2022,927,1742,2405,2330,2481,1742],[2023,349,689,938,920,960,689],[2024,1467,5972,4958,4596,5219,5972],[2025,3054,8739,8848,8630,9030,8739]],"cal":[7.8,12.1,12.9,16.9,17.5,12.8,73.3,390.3,899.1,19.0,53.2,43.2,7.8,20.3,23.1,20.1,14.0,44.8,1369.1,604.2,187.7,21.1,14.4,8.2,20.3,19.9,34.3,26.8,51.2,254.2,1846.6,6575.6,434.6,55.2,29.9,10.6,9.3,27.0,98.8,35.7,11.1,104.1,686.2,163.1,199.7,174.8,48.8,37.2,69.7,159.3,87.2,28.7,21.5,319.2,1884.9,7911.0,673.5,817.0,17.1,30.3,10.5,26.7,15.7,43.9,20.5,66.0,100.9,1164.4,128.5,19.7,9.3,11.8,11.2,11.0,49.3,19.2,13.3,15.3,32.6,203.6,135.0,85.9,302.2,35.0,21.3,46.2,38.8,58.5,13.9,19.5,44.9,118.3,71.0,153.4,60.5,55.6,8.6,134.3,277.3,48.0,46.0,18.7,76.1,847.0,393.2,140.0,13.5,8.2,11.6,12.3,50.7,28.0,19.4,20.5,534.0,2248.6,179.0,193.7,21.9,9.4,24.4,91.9,39.6,95.1,18.5,33.7,194.8,271.3,139.3,957.9,10.7,35.0,20.3,311.5,428.1,31.8,24.6,29.6,256.5,210.5,1823.4,45.9,9.3,8.2,9.0,2.0,1.0,55.0,39.0,98.0,164.0,2412.0,619.0,65.0,90.0,142.0,0,2.0,98.0,25.0,73.0,17.0,58.0,65.0,103.0,20.0,0,30.0,58.0,19.0,192.0,202.0,29.0,54.0,185.0,569.0,28.0,39.0,37.0,25.0,1.0,3.0,26.0,19.0,15.0,12.0,162.0,4439.0,266.0,131.0,56.0,123.0,123.0,38.0,117.0,140.0,20.0,2049.0,1758.0,3097.0,226.0,5008.0,43.0,22.0,12.0,85.0,11.0,24.0,27.0,4.0,4.0,50.0,32.0,96.0,5.0,2.0,53.0,49.0,111.0,10.0,33.0,16.0,382.0,88.0,442.0,31.0,11.0,56.0,28.0,49.0,20.0,3.0,6.0,16.0,423.0,264.0,725.0,43.0,13.0,0,60.0,2.0,110.0,7.0,13.0,27.0,35.0,39.0,4.0,37.0,74.0,6.0,69.0,29.0,3.0,29.0,10.0,7.0,592.0,955.0,13.0,27.0,8.0,0,14.0,63.0,51.0,52.0,23.0,5.0,16.0,398.0,31.0,20.0,8.0,8.0,11.0,34.0,14.0,17.0,11.0,9.0,12.0,43.0,5765.0,25.0,6.0,25.0,17.0,4.0,49.0,9.0,10.0,10.0,675.0,7838.0,83.0,31.0,9.0,4.0]},{"id":"Canada_NWT_South","name":"NWT South","country":"Canada","fireType":"Boreal forest wildfire","event":["2023-05","2023-09"],"bbox":[60.0,64.0,-125.0,-110.0],"hemi":"N","years":[[2001,18,null,317,291,345,317],[2002,15,null,399,352,449,399],[2003,463,null,2923,2808,3028,2923],[2004,6066,null,35274,34632,35842,35274],[2005,1684,null,9643,9428,9912,9643],[2006,268,null,1898,1855,1950,1898],[2007,353,null,2308,2219,2402,2308],[2008,4490,null,26165,25985,26406,26165],[2009,39,null,446,415,479,446],[2010,841,null,5639,5353,5967,5639],[2011,958,null,4739,4548,4894,4739],[2012,2814,null,14837,14490,15184,14837],[2013,9044,45537,51144,50395,51799,45537],[2014,39216,290117,267104,264395,269189,290117],[2015,8832,40801,42181,41199,43244,40801],[2016,2062,13155,12738,12554,12909,13155],[2017,10576,74714,69373,68393,70178,74714],[2018,277,1176,1430,1394,1466,1176],[2019,564,2730,2809,2720,2910,2730],[2020,81,359,622,596,646,359],[2021,1818,8170,10268,10013,10554,8170],[2022,6046,36974,38204,37296,39195,36974],[2023,53054,320724,324923,321305,328928,320724],[2024,27864,143099,161796,160398,163233,143099],[2025,18619,134015,119533,117870,121389,134015]],"cal":[3.2,4.4,4.5,8.2,12.9,71.1,61.0,71.6,52.9,17.6,5.2,4.7,3.2,4.4,4.5,8.2,12.9,72.9,129.6,82.8,52.9,17.6,5.2,4.7,3.2,4.4,4.5,8.2,12.9,34.5,1471.0,1230.4,126.1,17.6,5.2,4.7,3.2,4.4,4.5,8.2,12.9,640.4,16919.0,17263.1,386.2,22.5,5.2,4.7,3.2,4.4,4.5,8.2,179.0,364.7,5909.5,2984.5,157.8,17.6,5.2,4.7,3.2,4.4,4.5,8.2,12.9,229.2,525.3,997.7,84.7,17.6,5.2,4.7,3.2,4.4,4.5,8.2,12.9,1039.3,986.3,169.1,52.9,17.6,5.2,4.7,3.2,4.4,4.5,8.2,12.9,219.0,18995.4,6837.2,52.9,17.6,5.2,4.7,3.2,4.4,4.5,8.2,12.9,38.9,105.7,187.7,52.9,17.6,5.2,4.7,3.2,4.4,4.5,11.0,12.9,2772.4,1644.8,1002.9,155.3,17.6,5.2,4.7,3.2,4.4,4.5,8.2,12.9,2970.7,851.8,788.4,67.3,17.6,5.2,4.7,3.2,4.4,4.5,8.2,48.4,1061.3,6632.6,4902.9,1920.6,241.3,5.2,4.7,0,0,0,0,11.0,2808.0,22407.0,19490.0,818.0,2.0,1.0,0,0,0,0,0,17.0,17562.0,162100.0,108244.0,2193.0,1.0,0,0,0,0,1.0,0,5821.0,18637.0,5406.0,10918.0,18.0,0,0,0,0,0,0,1.0,0,952.0,8673.0,3516.0,8.0,1.0,4.0,0,0,0,0,2.0,37.0,17.0,7919.0,64185.0,2552.0,0,0,2.0,0,0,1.0,0,1.0,88.0,880.0,201.0,3.0,2.0,0,0,0,0,1.0,1.0,305.0,191.0,2170.0,58.0,0,2.0,2.0,0,0,0,1.0,0,1.0,262.0,58.0,30.0,0,2.0,0,5.0,1.0,0,0,0,1.0,1142.0,2644.0,4378.0,1.0,0,2.0,1.0,0,0,0,1.0,0,1168.0,8367.0,15146.0,3475.0,8815.0,0,2.0,1.0,0,0,0,16800.0,24751.0,87641.0,138796.0,52535.0,199.0,0,1.0,0,0,0,0,651.0,684.0,23706.0,111921.0,6125.0,12.0,0,0,0,0,0,0,664.0,9646.0,41966.0,61153.0,20579.0,4.0,2.0,1.0]},{"id":"Australia_NSW","name":"NSW","country":"Australia","fireType":"Bushfires","event":["2019-10","2020-02"],"bbox":[-37.6,-28.1,140.9,153.7],"hemi":"S","years":[[2001,7913,null,42627,41499,43794,42627],[2002,25440,null,134753,132866,136587,134753],[2003,45208,null,229343,226097,233125,229343],[2004,21600,null,85715,85010,86482,85715],[2005,18765,null,83156,82428,83967,83156],[2006,35331,null,160411,158990,161680,160411],[2007,15836,null,82903,82011,83873,82903],[2008,9693,null,49764,49372,50193,49764],[2009,18248,null,95132,94011,96387,95132],[2010,8974,null,45864,45438,46301,45864],[2011,22537,null,84662,84025,85336,84662],[2012,17188,null,77930,77289,78584,77930],[2013,20733,104173,100001,98747,101236,104173],[2014,19112,95224,92876,91725,93957,95224],[2015,13831,63383,64508,63880,65194,63383],[2016,15383,68762,68495,67953,69059,68762],[2017,23735,100249,96338,95474,97200,100249],[2018,21687,98808,96076,95247,96972,98808],[2019,91404,485224,480184,473726,486749,485224],[2020,34338,175652,180085,177605,182410,175652],[2021,14799,56926,61274,60848,61738,56926],[2022,7502,37557,38881,38527,39216,37557],[2023,22249,101319,100994,99906,102077,101319],[2024,15199,66179,68318,67654,69058,66179],[2025,15728,73504,74574,73837,75278,73504]],"cal":[1904.3,1839.4,4109.2,5289.6,2630.5,1264.6,1372.6,2962.1,3065.0,4760.1,1906.8,11522.9,9459.5,1851.4,3389.6,4776.7,3607.0,2063.2,8542.0,8169.7,12326.4,39105.9,20662.2,20799.3,118977.8,39982.0,7254.8,8458.4,7559.6,3301.4,3609.3,6313.8,24417.4,3839.0,3510.1,2119.8,2671.0,3044.1,8332.8,17441.4,18223.1,7405.1,4777.8,6428.5,5843.4,5306.0,3527.1,2714.5,3462.8,3642.3,12719.7,18113.8,10840.6,4907.4,3293.5,7623.5,5725.6,6596.2,2013.7,4217.2,10328.0,4343.8,5462.8,20171.1,13694.0,8252.7,3610.4,8675.7,7127.0,4937.9,18281.8,55525.6,23187.8,4992.1,3632.9,12346.9,6015.3,1796.2,4213.3,8816.8,8572.6,6141.9,1872.9,1314.0,1334.2,1843.2,4333.0,13760.3,6906.4,2034.5,2344.4,4805.6,4813.9,3629.6,1398.8,2560.4,2432.5,14337.7,6333.6,10553.6,8749.6,1915.1,3338.0,11475.6,9594.7,6655.1,7631.2,12115.3,2306.8,1397.9,9666.3,11332.7,6793.1,2137.2,1567.0,3329.9,3110.1,1725.5,1328.0,1170.0,2623.5,2933.8,17856.5,23153.3,10143.5,4398.3,3463.6,4757.3,8158.3,3585.9,2508.7,1078.9,2599.0,2708.0,6163.1,14487.7,7935.3,2116.6,2364.7,6439.9,9040.1,11791.4,6816.3,5467.7,10266.0,8849.0,6543.0,17075.0,9436.0,1378.0,2352.0,8501.0,8651.0,17710.0,9950.0,3462.0,19194.0,17646.0,5801.0,13506.0,7412.0,2233.0,5883.0,6076.0,5064.0,6656.0,3772.0,1981.0,1732.0,3206.0,19247.0,10901.0,5858.0,2276.0,1409.0,4665.0,5980.0,3899.0,1992.0,2218.0,1748.0,4011.0,8410.0,22099.0,10758.0,1310.0,2464.0,3238.0,1714.0,5885.0,4302.0,2823.0,2595.0,6207.0,9821.0,23783.0,14724.0,5768.0,5496.0,12631.0,11541.0,2494.0,2541.0,2648.0,9868.0,5287.0,7768.0,20344.0,12631.0,4575.0,8634.0,13331.0,6936.0,3290.0,3366.0,2778.0,5573.0,9207.0,11750.0,11050.0,9802.0,5353.0,6487.0,10175.0,29963.0,21187.0,144818.0,219859.0,126431.0,17876.0,4663.0,6201.0,3942.0,2681.0,2465.0,3074.0,3630.0,1890.0,1767.0,1032.0,1769.0,2366.0,7243.0,20120.0,7449.0,1177.0,1296.0,4251.0,4976.0,1748.0,681.0,3850.0,883.0,1804.0,10025.0,12510.0,3770.0,1444.0,1281.0,1332.0,1238.0,489.0,1246.0,1535.0,2339.0,3669.0,8976.0,21085.0,9327.0,3575.0,4154.0,8704.0,7454.0,13155.0,5956.0,12925.0,2587.0,4114.0,9698.0,16447.0,7302.0,2006.0,1768.0,4401.0,6786.0,2757.0,1786.0,6527.0,6480.0,6735.0,6637.0,14924.0,9350.0,2972.0,2792.0,2980.0,6905.0,3964.0,3328.0,6437.0]},{"id":"Brazil_North_Pantanal","name":"North Pantanal","country":"Brazil","fireType":"Wetland and vegetation fires","event":["2020-07","2020-10"],"bbox":[-18.0,-15.5,-58.2,-55.0],"hemi":"S","years":[[2001,4257,null,14801,14388,15263,14801],[2002,9480,null,36243,35822,36638,36243],[2003,4573,null,17002,16842,17144,17002],[2004,10344,null,40080,39647,40522,40080],[2005,9930,null,38160,37882,38453,38160],[2006,3034,null,11385,11236,11527,11385],[2007,9245,null,36735,36373,37104,36735],[2008,6416,null,24450,24230,24677,24450],[2009,1697,null,6860,6739,6980,6860],[2010,13133,null,51964,51427,52502,51964],[2011,5185,null,20756,20551,20960,20756],[2012,3488,null,14050,13904,14203,14050],[2013,4551,16843,17850,17626,18055,16843],[2014,1420,5209,5885,5790,5971,5209],[2015,4458,17289,16990,16732,17233,17289],[2016,3620,14345,13559,13381,13718,14345],[2017,6209,26025,24290,23984,24576,26025],[2018,1846,7361,7415,7319,7515,7361],[2019,6638,25718,26592,26356,26815,25718],[2020,38511,157518,154855,153382,156082,157518],[2021,6024,23848,24783,24426,25125,23848],[2022,1523,6757,6416,6293,6534,6757],[2023,11252,45515,45659,45150,46021,45515],[2024,19019,82618,81789,80342,83166,82618],[2025,1026,4141,5086,5008,5165,4141]],"cal":[105.0,69.1,46.9,77.7,165.3,238.9,309.7,3896.9,5373.1,3768.3,649.7,100.3,116.2,43.7,46.1,54.7,114.0,278.6,1300.4,4895.9,8764.8,10890.8,8823.5,914.3,241.7,67.6,82.9,88.8,296.0,680.2,955.1,2526.7,6247.9,3832.6,1762.4,220.2,145.9,84.9,157.8,124.3,179.4,717.6,1038.9,3981.6,19348.1,12199.7,1489.2,613.0,92.2,203.9,92.0,143.3,332.0,733.8,2169.5,18116.2,10485.6,4999.8,626.6,165.2,129.0,101.2,79.0,72.8,174.8,318.3,915.1,2847.6,4262.4,933.2,1429.2,122.7,79.0,99.6,137.6,99.3,174.2,466.7,777.5,5983.5,20433.8,7838.4,504.0,141.5,79.1,62.7,50.2,56.4,168.2,178.6,786.4,3779.8,7561.7,7609.6,1732.8,2384.1,1352.4,92.9,48.8,56.4,95.0,150.9,265.5,1023.5,1063.0,1759.0,792.9,160.1,125.8,72.8,106.4,79.4,162.6,439.2,1172.0,8479.2,26773.2,7489.6,1581.5,5482.1,636.9,81.4,41.7,43.9,97.9,181.1,328.8,1870.5,5241.2,4927.9,5624.4,1680.5,774.2,75.7,120.0,62.7,97.3,205.7,375.6,1870.0,6728.6,2640.8,858.3,240.6,80.0,43.0,45.0,11.0,76.0,127.0,429.0,1613.0,6167.0,3492.0,3245.0,1515.0,82.0,36.0,16.0,20.0,12.0,83.0,339.0,531.0,1303.0,2204.0,533.0,50.0,194.0,73.0,56.0,14.0,32.0,230.0,394.0,3418.0,5213.0,4195.0,1140.0,2330.0,186.0,106.0,32.0,142.0,120.0,238.0,1833.0,2664.0,5132.0,3125.0,471.0,296.0,296.0,72.0,38.0,26.0,78.0,466.0,1538.0,5080.0,14498.0,2755.0,1106.0,72.0,57.0,27.0,35.0,22.0,98.0,188.0,461.0,804.0,4350.0,670.0,167.0,482.0,182.0,185.0,121.0,23.0,72.0,397.0,626.0,4039.0,10282.0,5000.0,3427.0,1364.0,2814.0,375.0,2290.0,1288.0,646.0,588.0,7285.0,41054.0,68229.0,22857.0,8664.0,1428.0,164.0,206.0,88.0,105.0,155.0,209.0,288.0,3607.0,7706.0,10016.0,974.0,330.0,67.0,26.0,20.0,122.0,261.0,85.0,126.0,298.0,758.0,341.0,2381.0,2272.0,166.0,39.0,26.0,14.0,97.0,144.0,288.0,714.0,2244.0,7863.0,31666.0,2254.0,1748.0,1411.0,752.0,956.0,1907.0,2717.0,410.0,18546.0,28731.0,23373.0,1958.0,109.0,100.0,64.0,44.0,17.0,53.0,58.0,34.0,294.0,1095.0,2056.0,160.0,166.0]},{"id":"Indonesia_Central_Kalimantan","name":"Central Kalimantan","country":"Indonesia","fireType":"Peatland fires","event":["2015-08","2015-10"],"bbox":[-3.6,0.9,110.7,115.9],"hemi":"S","years":[[2001,4027,null,20050,19362,20559,20050],[2002,44992,null,206394,204171,208833,206394],[2003,17396,null,71699,71054,72283,71699],[2004,31045,null,137850,136480,139079,137850],[2005,12126,null,52468,51874,53058,52468],[2006,52264,null,250465,247911,252894,250465],[2007,7260,null,30966,30613,31310,30966],[2008,5003,null,20973,20711,21232,20973],[2009,31011,null,133804,132710,134821,133804],[2010,1909,null,10445,10311,10585,10445],[2011,14057,null,60032,59483,60660,60032],[2012,13785,null,59666,58972,60252,59666],[2013,8465,34664,36621,36154,36994,34664],[2014,25202,117327,114730,112960,116253,117327],[2015,49996,258815,242705,239983,245486,258815],[2016,2973,12756,14227,14037,14409,12756],[2017,1824,8745,10737,10586,10886,8745],[2018,7632,33476,35824,35414,36185,33476],[2019,25629,117898,118988,117536,120720,117898],[2020,1593,8791,9350,9231,9464,8791],[2021,1490,6964,8963,8840,9088,6964],[2022,1008,5527,7435,7322,7552,5527],[2023,12871,56447,59169,58535,59775,56447],[2024,4007,14094,17293,17078,17514,14094],[2025,2839,14461,13441,13312,13582,14461]],"cal":[126.0,161.6,144.0,121.4,196.0,174.8,1069.2,11048.8,5614.8,975.9,281.8,135.3,123.4,158.9,112.4,137.7,329.8,341.0,5781.4,81488.6,62640.1,53267.8,1581.1,432.1,340.0,169.1,364.5,175.3,819.2,3466.3,2546.2,23040.7,33770.7,6290.1,596.1,120.5,230.2,263.1,543.7,336.2,645.2,1917.0,800.0,48631.9,34626.1,48436.7,1262.6,156.9,266.8,205.2,456.5,172.0,256.1,744.6,2029.9,11135.4,27782.8,8691.1,550.2,177.3,619.5,244.0,357.6,151.5,311.4,269.9,4338.1,35312.9,68490.8,118346.7,21679.9,342.2,277.0,267.8,402.7,146.4,310.1,312.0,678.7,5327.1,14446.0,8015.6,614.5,168.3,376.1,386.8,141.2,169.1,501.9,649.2,562.9,3417.2,10314.1,3789.1,532.7,132.8,203.4,430.2,180.0,234.3,408.4,1124.6,4519.6,33511.2,84443.2,6968.1,1606.5,174.1,174.5,349.6,165.9,166.6,171.3,254.8,366.2,1765.8,3467.1,3089.8,315.9,157.6,207.4,243.8,129.6,161.7,276.0,1369.6,4785.0,27584.2,18426.3,6237.8,485.8,124.9,191.3,156.1,221.9,203.8,444.9,920.4,1223.6,11585.4,30655.9,13314.9,596.8,150.6,287.0,120.0,198.0,140.0,127.0,867.0,385.0,4499.0,12764.0,14773.0,393.0,111.0,761.0,1444.0,268.0,204.0,326.0,360.0,5201.0,10185.0,43551.0,40239.0,14667.0,121.0,182.0,169.0,160.0,164.0,409.0,630.0,4961.0,43541.0,101269.0,101684.0,5151.0,495.0,351.0,114.0,112.0,71.0,131.0,125.0,292.0,3835.0,5180.0,2089.0,397.0,59.0,35.0,108.0,68.0,79.0,77.0,161.0,669.0,1052.0,4609.0,1675.0,107.0,105.0,113.0,354.0,78.0,76.0,154.0,389.0,1852.0,11328.0,13900.0,4917.0,250.0,65.0,101.0,199.0,219.0,63.0,306.0,268.0,2990.0,15554.0,77599.0,10425.0,9897.0,277.0,93.0,81.0,61.0,84.0,83.0,116.0,141.0,1770.0,3136.0,2534.0,588.0,104.0,17.0,229.0,69.0,224.0,92.0,190.0,494.0,541.0,2898.0,2005.0,136.0,69.0,107.0,81.0,151.0,137.0,216.0,153.0,458.0,1933.0,1577.0,421.0,135.0,158.0,217.0,94.0,89.0,249.0,508.0,603.0,2754.0,11780.0,21149.0,17680.0,1132.0,192.0,98.0,186.0,179.0,138.0,123.0,140.0,291.0,1622.0,9138.0,1940.0,185.0,54.0,41.0,71.0,61.0,65.0,223.0,203.0,1749.0,3267.0,6726.0,1750.0,249.0,56.0]},{"id":"Egypt_Nile_Delta","name":"Nile Delta","country":"Egypt","fireType":"Agricultural residue / rice-straw burning","event":["2014-10","2014-11"],"bbox":[30.2,31.65,30.5,32.3],"hemi":"N","years":[[2001,79,null,1812,1747,1880,1812],[2002,230,null,2807,2739,2874,2807],[2003,210,null,2717,2648,2787,2717],[2004,350,null,3500,3413,3586,3500],[2005,480,null,4162,4076,4248,4162],[2006,678,null,5154,5041,5278,5154],[2007,632,null,4934,4839,5028,4934],[2008,559,null,4575,4460,4686,4575],[2009,591,null,4719,4630,4812,4719],[2010,600,null,4774,4674,4875,4774],[2011,481,null,4185,4108,4265,4185],[2012,477,null,4113,4038,4188,4113],[2013,834,5646,5996,5844,6152,5646],[2014,692,5376,5201,5105,5298,5376],[2015,474,4662,4158,4060,4258,4662],[2016,683,5503,5242,5155,5329,5503],[2017,425,4314,3969,3870,4066,4314],[2018,94,2078,1839,1768,1911,2078],[2019,164,1907,2122,2050,2188,1907],[2020,218,2252,2442,2336,2530,2252],[2021,186,2668,2401,2326,2477,2668],[2022,221,2346,2642,2567,2707,2346],[2023,438,4198,3947,3860,4030,4198],[2024,236,2540,2790,2728,2854,2540],[2025,142,1361,1997,1927,2069,1361]],"cal":[66.1,83.2,78.3,94.1,125.0,89.7,96.9,165.8,291.5,516.4,138.3,67.2,74.4,74.4,76.2,91.8,146.0,153.2,110.4,140.0,754.7,962.0,147.0,77.2,73.2,83.5,79.8,92.3,136.4,109.1,109.6,152.0,532.3,1138.9,126.7,82.9,74.5,72.5,93.3,100.6,128.1,133.1,121.0,181.3,702.5,1570.1,198.9,123.8,94.5,81.4,104.3,95.3,139.0,153.9,107.8,171.9,1029.1,1913.0,178.4,93.9,87.6,92.6,85.6,98.3,166.8,112.6,125.8,213.0,1306.7,2567.7,208.0,89.0,70.5,76.4,114.8,154.0,199.3,170.1,131.2,243.3,1146.2,2375.5,169.8,82.5,76.5,84.3,118.9,99.8,220.5,131.1,99.7,229.9,1438.9,1781.6,211.3,82.7,102.4,105.9,83.9,110.2,197.0,131.4,100.6,312.9,1209.5,2066.3,204.6,94.7,104.8,91.6,87.6,103.6,192.7,124.6,119.0,243.4,1351.7,2097.9,170.9,86.0,83.4,91.9,101.1,100.6,145.4,110.1,93.2,238.9,1031.8,1927.1,160.4,101.2,81.3,90.4,92.7,93.9,171.5,155.4,145.2,325.9,1037.4,1681.7,143.8,93.7,42.0,60.0,80.0,62.0,161.0,107.0,52.0,275.0,1494.0,3129.0,119.0,65.0,43.0,65.0,76.0,101.0,176.0,127.0,120.0,392.0,1652.0,2472.0,105.0,47.0,67.0,50.0,64.0,98.0,270.0,187.0,169.0,354.0,1384.0,1777.0,133.0,109.0,57.0,106.0,50.0,105.0,203.0,100.0,110.0,424.0,1719.0,2473.0,108.0,48.0,48.0,83.0,139.0,160.0,285.0,177.0,138.0,406.0,1281.0,1338.0,173.0,86.0,110.0,107.0,189.0,157.0,150.0,157.0,111.0,224.0,402.0,246.0,142.0,83.0,115.0,107.0,133.0,106.0,220.0,108.0,122.0,142.0,262.0,409.0,113.0,70.0,48.0,83.0,61.0,89.0,227.0,116.0,82.0,115.0,462.0,753.0,122.0,94.0,125.0,91.0,96.0,128.0,301.0,188.0,117.0,184.0,598.0,618.0,147.0,75.0,86.0,69.0,89.0,145.0,238.0,133.0,61.0,83.0,449.0,801.0,126.0,66.0,45.0,55.0,86.0,138.0,371.0,78.0,58.0,186.0,1467.0,1477.0,160.0,77.0,74.0,68.0,85.0,122.0,272.0,68.0,54.0,177.0,533.0,933.0,86.0,68.0,65.0,62.0,59.0,80.0,184.0,96.0,70.0,101.0,207.0,307.0,65.0,65.0]},{"id":"Argentina_La_Rioja","name":"La Rioja","country":"Argentina","fireType":"Mountain shrubland and dry forest wildfire (Chilecito)","event":["2026-07","2026-07"],"bbox":[-30.0,-28.0,-68.6,-66.4],"hemi":"S","years":[[2001,194,null,731,675,791,731],[2002,268,null,1285,1181,1361,1285],[2003,872,null,3443,3231,3630,3443],[2004,352,null,1325,1247,1391,1325],[2005,151,null,526,498,550,526],[2006,153,null,561,529,594,561],[2007,157,null,565,538,592,565],[2008,201,null,674,648,703,674],[2009,131,null,521,497,545,521],[2010,180,null,688,655,722,688],[2011,198,null,676,639,717,676],[2012,97,null,408,387,430,408],[2013,120,400,494,473,516,400],[2014,135,454,521,498,546,454],[2015,104,459,462,441,486,459],[2016,324,1264,1267,1195,1342,1264],[2017,1140,5452,4743,4406,5017,5452],[2018,203,568,696,667,726,568],[2019,154,561,596,568,626,561],[2020,265,935,893,849,939,935],[2021,256,811,806,770,844,811],[2022,301,870,896,855,938,870],[2023,321,1427,1189,1109,1265,1427],[2024,585,2273,2421,2285,2526,2273],[2025,132,587,546,519,574,587]],"cal":[18.8,12.6,12.7,12.7,13.1,16.1,95.6,399.5,33.8,50.0,42.8,23.8,19.8,12.6,15.9,14.3,14.9,25.3,54.9,59.1,87.0,925.1,31.6,24.5,19.2,12.6,12.7,15.7,15.7,293.1,887.8,1085.8,112.6,613.8,247.3,126.8,39.1,12.6,19.4,14.0,16.1,24.4,43.0,520.4,171.4,293.7,137.4,33.7,33.0,26.4,25.6,28.0,32.4,43.6,49.1,112.3,47.9,58.7,29.6,39.5,23.3,23.3,28.0,26.8,38.8,40.4,46.3,87.4,58.9,95.3,70.3,21.9,18.8,48.6,23.5,17.7,51.3,31.9,61.1,82.5,98.6,75.8,27.6,27.2,29.6,18.7,21.5,20.3,21.0,51.6,158.6,96.7,81.2,78.5,74.0,22.0,48.4,55.4,17.8,20.5,23.3,38.5,52.3,72.6,76.8,70.6,24.0,20.6,29.2,14.8,34.6,27.5,21.0,39.7,51.1,69.0,66.9,47.2,257.9,29.3,16.4,17.6,13.9,18.5,51.5,67.0,68.9,102.2,77.8,45.9,43.7,152.1,45.4,20.9,17.4,15.6,14.4,48.8,45.0,47.9,47.3,45.5,28.8,30.9,9.0,7.0,26.0,10.0,41.0,25.0,49.0,69.0,34.0,36.0,61.0,33.0,29.0,11.0,10.0,15.0,14.0,51.0,44.0,62.0,34.0,132.0,23.0,29.0,18.0,3.0,9.0,9.0,18.0,34.0,28.0,113.0,99.0,49.0,34.0,45.0,10.0,1.0,13.0,12.0,4.0,52.0,146.0,589.0,82.0,136.0,179.0,40.0,79.0,16.0,12.0,9.0,23.0,61.0,55.0,298.0,1816.0,2382.0,672.0,29.0,20.0,29.0,25.0,28.0,75.0,62.0,38.0,99.0,99.0,30.0,54.0,9.0,50.0,9.0,12.0,5.0,13.0,81.0,57.0,85.0,86.0,42.0,53.0,68.0,46.0,35.0,25.0,16.0,18.0,77.0,137.0,130.0,121.0,104.0,171.0,55.0,17.0,7.0,12.0,18.0,22.0,49.0,94.0,101.0,144.0,173.0,145.0,29.0,104.0,16.0,30.0,63.0,24.0,34.0,69.0,102.0,120.0,174.0,109.0,25.0,126.0,23.0,39.0,20.0,46.0,50.0,64.0,124.0,161.0,84.0,640.0,50.0,45.0,11.0,17.0,26.0,38.0,43.0,28.0,1689.0,110.0,165.0,45.0,56.0,67.0,17.0,7.0,9.0,11.0,19.0,44.0,74.0,65.0,93.0,144.0,37.0]}],"model":{"validation":[{"model":"Average ratio (per region)","poisson_deviance_cell":5.092,"total_bias":5.711,"monthly_wape":16.408,"monthly_corr":0.982},{"model":"Gradient boosting (Poisson)","poisson_deviance_cell":0.933,"total_bias":5.527,"monthly_wape":12.918,"monthly_corr":0.994},{"model":"Ratio \u00d7 learned correction (main)","poisson_deviance_cell":0.931,"total_bias":5.757,"monthly_wape":12.954,"monthly_corr":0.994}],"test_overall":[{"model":"Average ratio (per region)","poisson_deviance_cell":6.377,"total_bias":1.536,"monthly_wape":14.56,"monthly_corr":0.99},{"model":"Gradient boosting (Poisson)","poisson_deviance_cell":1.295,"total_bias":-0.505,"monthly_wape":10.147,"monthly_corr":0.993},{"model":"Ratio \u00d7 learned correction (main)","poisson_deviance_cell":1.295,"total_bias":1.413,"monthly_wape":11.093,"monthly_corr":0.992}],"test_by_region":[{"area":"Argentina_La_Rioja","poisson_deviance_cell":0.533,"total_bias":-0.744,"monthly_wape":22.886,"monthly_corr":0.989},{"area":"Australia_NSW","poisson_deviance_cell":1.206,"total_bias":2.062,"monthly_wape":11.084,"monthly_corr":0.978},{"area":"Brazil_North_Pantanal","poisson_deviance_cell":1.076,"total_bias":-0.447,"monthly_wape":9.027,"monthly_corr":0.997},{"area":"Canada_NWT_South","poisson_deviance_cell":1.672,"total_bias":3.94,"monthly_wape":14.292,"monthly_corr":0.991},{"area":"Egypt_Nile_Delta","poisson_deviance_cell":1.565,"total_bias":15.041,"monthly_wape":26.066,"monthly_corr":0.977},{"area":"Guinea_Kankan_Siguiri","poisson_deviance_cell":2.34,"total_bias":-3.061,"monthly_wape":6.173,"monthly_corr":0.998},{"area":"Indonesia_Central_Kalimantan","poisson_deviance_cell":1.002,"total_bias":11.669,"monthly_wape":17.728,"monthly_corr":0.992},{"area":"Portugal_Centro","poisson_deviance_cell":0.635,"total_bias":-4.514,"monthly_wape":21.134,"monthly_corr":0.979}],"leave_one_region_out":[{"held_out":"Argentina_La_Rioja","model":"Average ratio (other regions)","poisson_deviance_cell":1.853,"total_bias":19.201,"monthly_wape":34.818,"monthly_corr":0.981},{"held_out":"Argentina_La_Rioja","model":"Ratio \u00d7 learned correction","poisson_deviance_cell":0.483,"total_bias":28.891,"monthly_wape":34.511,"monthly_corr":0.981},{"held_out":"Australia_NSW","model":"Average ratio (other regions)","poisson_deviance_cell":5.04,"total_bias":-2.796,"monthly_wape":15.39,"monthly_corr":0.994},{"held_out":"Australia_NSW","model":"Ratio \u00d7 learned correction","poisson_deviance_cell":1.334,"total_bias":-10.454,"monthly_wape":13.167,"monthly_corr":0.998},{"held_out":"Brazil_North_Pantanal","model":"Average ratio (other regions)","poisson_deviance_cell":4.689,"total_bias":17.519,"monthly_wape":18.353,"monthly_corr":0.998},{"held_out":"Brazil_North_Pantanal","model":"Ratio \u00d7 learned correction","poisson_deviance_cell":1.552,"total_bias":23.009,"monthly_wape":23.83,"monthly_corr":0.996},{"held_out":"Canada_NWT_South","model":"Average ratio (other regions)","poisson_deviance_cell":2.226,"total_bias":-28.232,"monthly_wape":30.649,"monthly_corr":0.985},{"held_out":"Canada_NWT_South","model":"Ratio \u00d7 learned correction","poisson_deviance_cell":1.737,"total_bias":-26.691,"monthly_wape":32.638,"monthly_corr":0.985},{"held_out":"Egypt_Nile_Delta","model":"Average ratio (other regions)","poisson_deviance_cell":15.874,"total_bias":-49.431,"monthly_wape":49.452,"monthly_corr":0.963},{"held_out":"Egypt_Nile_Delta","model":"Ratio \u00d7 learned correction","poisson_deviance_cell":3.02,"total_bias":-52.392,"monthly_wape":52.421,"monthly_corr":0.96},{"held_out":"Guinea_Kankan_Siguiri","model":"Average ratio (other regions)","poisson_deviance_cell":23.861,"total_bias":18.185,"monthly_wape":22.318,"monthly_corr":0.993},{"held_out":"Guinea_Kankan_Siguiri","model":"Ratio \u00d7 learned correction","poisson_deviance_cell":5.526,"total_bias":19.685,"monthly_wape":26.043,"monthly_corr":0.99},{"held_out":"Indonesia_Central_Kalimantan","model":"Average ratio (other regions)","poisson_deviance_cell":6.937,"total_bias":-0.114,"monthly_wape":13.105,"monthly_corr":0.988},{"held_out":"Indonesia_Central_Kalimantan","model":"Ratio \u00d7 learned correction","poisson_deviance_cell":1.504,"total_bias":2.173,"monthly_wape":12.863,"monthly_corr":0.993},{"held_out":"Portugal_Centro","model":"Average ratio (other regions)","poisson_deviance_cell":2.425,"total_bias":65.827,"monthly_wape":67.366,"monthly_corr":0.984},{"held_out":"Portugal_Centro","model":"Ratio \u00d7 learned correction","poisson_deviance_cell":1.103,"total_bias":75.894,"monthly_wape":77.494,"monthly_corr":0.98}],"jump_check":[{"area":"Argentina_La_Rioja","raw_jump":2.58,"real_change":0.71,"harmonized_jump":0.7},{"area":"Australia_NSW","raw_jump":5.28,"real_change":1.08,"harmonized_jump":1.16},{"area":"Brazil_North_Pantanal","raw_jump":1.97,"real_change":0.52,"harmonized_jump":0.49},{"area":"Canada_NWT_South","raw_jump":204.82,"real_change":31.06,"harmonized_jump":34.78},{"area":"Egypt_Nile_Delta","raw_jump":9.38,"real_change":1.2,"harmonized_jump":1.15},{"area":"Guinea_Kankan_Siguiri","raw_jump":4.0,"real_change":0.98,"harmonized_jump":0.98},{"area":"Indonesia_Central_Kalimantan","raw_jump":8.74,"real_change":1.78,"harmonized_jump":2.01},{"area":"Portugal_Centro","raw_jump":1.99,"real_change":0.75,"harmonized_jump":0.78}],"anomalies":[{"area":"Argentina_La_Rioja","month":"2017-09","calendar":1816.0,"source":"VIIRS","z":4.87,"in_event":false},{"area":"Argentina_La_Rioja","month":"2003-07","calendar":887.75,"source":"model","z":4.79,"in_event":false},{"area":"Argentina_La_Rioja","month":"2003-06","calendar":293.09,"source":"model","z":4.62,"in_event":false},{"area":"Argentina_La_Rioja","month":"2017-10","calendar":2382.0,"source":"VIIRS","z":4.47,"in_event":false},{"area":"Argentina_La_Rioja","month":"2022-04","calendar":63.0,"source":"VIIRS","z":4.0,"in_event":false},{"area":"Argentina_La_Rioja","month":"2024-08","calendar":1689.0,"source":"VIIRS","z":3.85,"in_event":false},{"area":"Argentina_La_Rioja","month":"2011-12","calendar":152.07,"source":"model","z":3.47,"in_event":false},{"area":"Argentina_La_Rioja","month":"2017-11","calendar":672.0,"source":"VIIRS","z":3.2,"in_event":false},{"area":"Australia_NSW","month":"2019-11","calendar":144818.0,"source":"VIIRS","z":27.42,"in_event":true},{"area":"Australia_NSW","month":"2019-12","calendar":219859.0,"source":"VIIRS","z":18.69,"in_event":true},{"area":"Australia_NSW","month":"2020-01","calendar":126431.0,"source":"VIIRS","z":4.87,"in_event":true},{"area":"Australia_NSW","month":"2019-09","calendar":29963.0,"source":"VIIRS","z":4.85,"in_event":false},{"area":"Australia_NSW","month":"2003-01","calendar":118977.773,"source":"model","z":4.55,"in_event":false},{"area":"Australia_NSW","month":"2006-12","calendar":55525.551,"source":"model","z":4.26,"in_event":false},{"area":"Australia_NSW","month":"2003-02","calendar":39981.961,"source":"model","z":4.11,"in_event":false},{"area":"Australia_NSW","month":"2002-10","calendar":39105.941,"source":"model","z":4.07,"in_event":false},{"area":"Brazil_North_Pantanal","month":"2020-03","calendar":2290.0,"source":"VIIRS","z":15.4,"in_event":false},{"area":"Brazil_North_Pantanal","month":"2020-07","calendar":7285.0,"source":"VIIRS","z":11.81,"in_event":true},{"area":"Brazil_North_Pantanal","month":"2020-08","calendar":41054.0,"source":"VIIRS","z":7.79,"in_event":true},{"area":"Brazil_North_Pantanal","month":"2020-09","calendar":68229.0,"source":"VIIRS","z":7.64,"in_event":true},{"area":"Brazil_North_Pantanal","month":"2020-04","calendar":1288.0,"source":"VIIRS","z":6.49,"in_event":false},{"area":"Brazil_North_Pantanal","month":"2020-01","calendar":2814.0,"source":"VIIRS","z":6.02,"in_event":false},{"area":"Brazil_North_Pantanal","month":"2024-02","calendar":1411.0,"source":"VIIRS","z":4.72,"in_event":false},{"area":"Brazil_North_Pantanal","month":"2024-05","calendar":1907.0,"source":"VIIRS","z":4.69,"in_event":false},{"area":"Canada_NWT_South","month":"2023-05","calendar":16800.0,"source":"VIIRS","z":14.19,"in_event":true},{"area":"Canada_NWT_South","month":"2023-09","calendar":52535.0,"source":"VIIRS","z":12.07,"in_event":true},{"area":"Canada_NWT_South","month":"2022-10","calendar":8815.0,"source":"VIIRS","z":4.8,"in_event":false},{"area":"Canada_NWT_South","month":"2015-05","calendar":5821.0,"source":"VIIRS","z":4.74,"in_event":false},{"area":"Canada_NWT_South","month":"2014-07","calendar":162100.0,"source":"VIIRS","z":4.56,"in_event":false},{"area":"Canada_NWT_South","month":"2025-09","calendar":20579.0,"source":"VIIRS","z":4.5,"in_event":false},{"area":"Canada_NWT_South","month":"2023-06","calendar":24751.0,"source":"VIIRS","z":4.37,"in_event":true},{"area":"Canada_NWT_South","month":"2023-08","calendar":138796.0,"source":"VIIRS","z":3.71,"in_event":true},{"area":"Egypt_Nile_Delta","month":"2018-03","calendar":189.0,"source":"VIIRS","z":3.28,"in_event":false},{"area":"Egypt_Nile_Delta","month":"2023-05","calendar":371.0,"source":"VIIRS","z":2.69,"in_event":false},{"area":"Egypt_Nile_Delta","month":"2004-12","calendar":123.82,"source":"model","z":2.58,"in_event":false},{"area":"Egypt_Nile_Delta","month":"2016-08","calendar":424.0,"source":"VIIRS","z":2.28,"in_event":false},{"area":"Egypt_Nile_Delta","month":"2015-07","calendar":169.0,"source":"VIIRS","z":2.22,"in_event":false},{"area":"Egypt_Nile_Delta","month":"2021-01","calendar":125.0,"source":"VIIRS","z":2.15,"in_event":false},{"area":"Egypt_Nile_Delta","month":"2013-10","calendar":3129.0,"source":"VIIRS","z":2.12,"in_event":false},{"area":"Egypt_Nile_Delta","month":"2017-08","calendar":406.0,"source":"VIIRS","z":2.08,"in_event":false},{"area":"Guinea_Kankan_Siguiri","month":"2017-10","calendar":5162.0,"source":"VIIRS","z":4.06,"in_event":false},{"area":"Guinea_Kankan_Siguiri","month":"2021-06","calendar":209.0,"source":"VIIRS","z":2.24,"in_event":false},{"area":"Guinea_Kankan_Siguiri","month":"2006-11","calendar":16378.78,"source":"model","z":2.17,"in_event":false},{"area":"Guinea_Kankan_Siguiri","month":"2014-02","calendar":49633.0,"source":"VIIRS","z":2.08,"in_event":false},{"area":"Guinea_Kankan_Siguiri","month":"2002-07","calendar":66.29,"source":"model","z":2.02,"in_event":false},{"area":"Guinea_Kankan_Siguiri","month":"2019-04","calendar":11519.0,"source":"VIIRS","z":2.02,"in_event":false},{"area":"Guinea_Kankan_Siguiri","month":"2004-05","calendar":1932.02,"source":"model","z":1.99,"in_event":false},{"area":"Guinea_Kankan_Siguiri","month":"2020-11","calendar":15638.0,"source":"VIIRS","z":1.94,"in_event":false},{"area":"Indonesia_Central_Kalimantan","month":"2014-02","calendar":1444.0,"source":"VIIRS","z":4.46,"in_event":false},{"area":"Indonesia_Central_Kalimantan","month":"2006-10","calendar":118346.672,"source":"model","z":3.97,"in_event":false},{"area":"Indonesia_Central_Kalimantan","month":"2015-12","calendar":495.0,"source":"VIIRS","z":3.91,"in_event":false},{"area":"Indonesia_Central_Kalimantan","month":"2003-06","calendar":3466.34,"source":"model","z":3.83,"in_event":false},{"area":"Indonesia_Central_Kalimantan","month":"2006-11","calendar":21679.85,"source":"model","z":3.7,"in_event":false},{"area":"Indonesia_Central_Kalimantan","month":"2002-08","calendar":81488.578,"source":"model","z":3.56,"in_event":false},{"area":"Indonesia_Central_Kalimantan","month":"2015-10","calendar":101684.0,"source":"VIIRS","z":3.33,"in_event":true},{"area":"Indonesia_Central_Kalimantan","month":"2002-12","calendar":432.12,"source":"model","z":3.2,"in_event":false},{"area":"Portugal_Centro","month":"2017-06","calendar":2049.0,"source":"VIIRS","z":26.03,"in_event":true},{"area":"Portugal_Centro","month":"2017-10","calendar":5008.0,"source":"VIIRS","z":20.77,"in_event":true},{"area":"Portugal_Centro","month":"2017-01","calendar":123.0,"source":"VIIRS","z":4.71,"in_event":false},{"area":"Portugal_Centro","month":"2024-09","calendar":5765.0,"source":"VIIRS","z":4.5,"in_event":false},{"area":"Portugal_Centro","month":"2007-11","calendar":302.23,"source":"model","z":4.39,"in_event":false},{"area":"Portugal_Centro","month":"2015-04","calendar":202.0,"source":"VIIRS","z":4.13,"in_event":false},{"area":"Portugal_Centro","month":"2012-02","calendar":311.5,"source":"model","z":3.84,"in_event":false},{"area":"Portugal_Centro","month":"2012-03","calendar":428.07,"source":"model","z":3.63,"in_event":false}],"split":{"train_until":2020,"val_years":[2021],"test_from":2022,"test_until":2025},"features":["modis_count","terra_count","aqua_count","frp_sum","frp_max","frp_mean","pixel_area_mean","day_share","nb_count","cell_mean","cell_month_mean","month_sin","month_cos","region_Argentina_La_Rioja","region_Australia_NSW","region_Brazil_North_Pantanal","region_Canada_NWT_South","region_Egypt_Nile_Delta","region_Guinea_Kankan_Siguiri","region_Indonesia_Central_Kalimantan","region_Portugal_Centro"],"members":5,"grid_km":10}};
+const NS = "http://www.w3.org/2000/svg";
+const MON = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const nice = n => n >= 1e6 ? (n/1e6).toFixed(n>=1e7?0:1)+"M" : n >= 1e3 ? (n/1e3).toFixed(n>=1e4?0:1)+"k" : String(Math.round(n));
+const fmt = n => Math.round(n).toLocaleString("en-US");
+const sgn = v => (v > 0 ? "+" : v < 0 ? "−" : "±") + Math.abs(v).toFixed(1) + "%";
+const label = r => `${r.name}, ${r.country}`;
+
+function el(tag, attrs = {}, parent, text) {
+  const e = document.createElementNS(NS, tag);
+  for (const k in attrs) e.setAttribute(k, attrs[k]);
+  if (text != null) e.textContent = text;
+  if (parent) parent.appendChild(e);
+  return e;
+}
+function svg(host, w, h, aria) {
+  const s = el("svg", { viewBox: `0 0 ${w} ${h}`, role: "img", "aria-label": aria });
+  host.innerHTML = ""; host.appendChild(s); return s;
+}
+function logTicks(lo, hi) {
+  const t = []; for (let e = Math.floor(Math.log10(lo)); e <= Math.ceil(Math.log10(hi)); e++) t.push(10 ** e);
+  return t.filter(v => v >= lo * 0.999 && v <= hi * 1.001);
+}
+
+/* Yearly chart: raw join (dashed), MODIS, harmonized before 2013 with band, VIIRS from 2013 */
+function yearly(host, r, w = 900, h = 300) {
+  const ys = r.years, pad = { l: 56, r: 16, t: 14, b: 30 };
+  const vals = ys.flatMap(y => [y[1], y[2] ?? 0, y[3], y[4], y[5], y[6]]).filter(v => v > 0);
+  let lo = Math.min(...vals), hi = Math.max(...vals);
+  lo = 10 ** Math.floor(Math.log10(lo)); hi = 10 ** Math.ceil(Math.log10(hi));
+  const X = y => pad.l + (y - 2001) / 24 * (w - pad.l - pad.r);
+  const Y = v => pad.t + (1 - (Math.log10(Math.max(v, lo)) - Math.log10(lo)) / (Math.log10(hi) - Math.log10(lo))) * (h - pad.t - pad.b);
+  const s = svg(host, w, h, `Yearly detections for ${label(r)}`);
+  const g = el("g", { style: "color:var(--muted)", "font-size": 12 }, s);
+  for (const t of logTicks(lo, hi)) {
+    el("line", { x1: pad.l, x2: w - pad.r, y1: Y(t), y2: Y(t), stroke: "currentColor", "stroke-opacity": .18 }, g);
+    el("text", { x: pad.l - 8, y: Y(t) + 4, "text-anchor": "end", class: "mono" }, g, nice(t));
+  }
+  for (let y = 2001; y <= 2025; y += 3) el("text", { x: X(y), y: h - 8, "text-anchor": "middle" }, g, y);
+  el("line", { x1: X(2012.5), x2: X(2012.5), y1: pad.t, y2: h - pad.b, stroke: "currentColor", "stroke-dasharray": "3 4" }, g);
+  el("text", { x: X(2012.5) + 6, y: pad.t + 12 }, g, "VIIRS from 2013");
+  const pre = ys.filter(y => y[0] <= 2012), post = ys.filter(y => y[0] >= 2013);
+  const band = pre.map(y => `${X(y[0])},${Y(y[5])}`).concat(pre.slice().reverse().map(y => `${X(y[0])},${Y(y[4])}`));
+  el("polygon", { points: band.join(" "), fill: "var(--model)", "fill-opacity": .18 }, s);
+  const line = (pts, attrs) => el("polyline", Object.assign({ points: pts.map(p => `${X(p[0])},${Y(p[1])}`).join(" "), fill: "none", "stroke-linejoin": "round" }, attrs), s);
+  line(ys.map(y => [y[0], y[1]]), { stroke: "var(--modis)", "stroke-width": 1.4, "stroke-opacity": .55 });
+  line(ys.map(y => [y[0], y[0] <= 2012 ? y[1] : y[2]]), { stroke: "var(--modis)", "stroke-width": 2, "stroke-dasharray": "6 4" });
+  line(pre.map(y => [y[0], y[3]]), { stroke: "var(--model)", "stroke-width": 2.6 });
+  line(post.map(y => [y[0], y[2]]), { stroke: "var(--fire)", "stroke-width": 2.6 });
+}
+
+/* Calendar heatmap */
+const RAMP = ["#0e1d33","#2b1f45","#5c2346","#932c3c","#c84a2c","#ee7a2a","#f7b24a","#ffe8a3"];
+function ramp(t) {
+  t = Math.min(1, Math.max(0, t)); const x = t * (RAMP.length - 1), i = Math.min(RAMP.length - 2, Math.floor(x)), f = x - i;
+  const a = parseInt(RAMP[i].slice(1), 16), b = parseInt(RAMP[i + 1].slice(1), 16);
+  const c = [16, 8, 0].map(sh => Math.round(((a >> sh) & 255) + ((((b >> sh) & 255) - ((a >> sh) & 255)) * f)));
+  return `rgb(${c.join(",")})`;
+}
+function calendar(host, r) {
+  const w = 420, h = 470, cw = (w - 46) / 12, chh = (h - 40) / 25;
+  const s = svg(host, w, h, `Monthly calendar 2001–2025 for ${label(r)}`);
+  const mx = Math.max(...r.cal);
+  const g = el("g", { style: "color:var(--muted)", "font-size": 10 }, s);
+  MON.forEach((m, i) => el("text", { x: 46 + i * cw + cw / 2, y: 12, "text-anchor": "middle" }, g, m[0]));
+  const [es, ee] = r.event;
+  r.cal.forEach((v, k) => {
+    const y = 2001 + Math.floor(k / 12), mo = k % 12, key = `${y}-${String(mo + 1).padStart(2, "0")}`;
+    const x0 = 46 + mo * cw, y0 = 20 + (y - 2001) * chh + (y >= 2013 ? 3 : 0);
+    const rc = el("rect", { x: x0 + .5, y: y0 + .5, width: cw - 1, height: chh - 1, rx: 2, fill: ramp(Math.log1p(v) / Math.log1p(mx)) }, s);
+    el("title", {}, rc, `${MON[mo]} ${y}: ${fmt(v)} detections${y < 2013 ? " (model estimate)" : ""}`);
+    if (key >= es && key <= ee) el("rect", { x: x0 + 1.2, y: y0 + 1.2, width: cw - 2.4, height: chh - 2.4, rx: 2, fill: "none", stroke: "#fff", "stroke-width": 1.5 }, s);
+  });
+  for (let y = 2001; y <= 2025; y += 4) el("text", { x: 40, y: 20 + (y - 2001) * chh + chh / 2 + 4 + (y >= 2013 ? 3 : 0), "text-anchor": "end", class: "mono" }, g, y);
+  el("line", { x1: 46, x2: w, y1: 20 + 12 * chh + 1.5, y2: 20 + 12 * chh + 1.5, stroke: "currentColor", "stroke-dasharray": "3 3" }, g);
+}
+
+/* Horizontal bar chart (diverging when values have both signs) */
+function hbars(host, rows, { w = 900, unit = "%", fmtv = v => sgn(v), colorOf, title, domain } = {}) {
+  const rowH = 30, pad = { l: 230, r: 70, t: title ? 26 : 8, b: 8 }, h = pad.t + rows.length * rowH + pad.b;
+  const s = svg(host, w, h, title || "Bar chart");
+  const vals = rows.map(r => r.v);
+  const [lo, hi] = domain || [Math.min(0, ...vals), Math.max(0, ...vals)];
+  const X = v => pad.l + (v - lo) / (hi - lo) * (w - pad.l - pad.r);
+  const g = el("g", { style: "color:var(--muted)", "font-size": 13 }, s);
+  if (title) el("text", { x: pad.l, y: 16, "font-weight": 600, style: "fill:var(--ink)" }, s, title);
+  el("line", { x1: X(0), x2: X(0), y1: pad.t - 4, y2: h - pad.b, stroke: "currentColor", "stroke-opacity": .5 }, g);
+  rows.forEach((r, i) => {
+    const y = pad.t + i * rowH;
+    el("text", { x: pad.l - 10, y: y + 19, "text-anchor": "end", style: "fill:var(--ink)" }, g, r.label);
+    const x0 = Math.min(X(0), X(r.v)), x1 = Math.max(X(0), X(r.v));
+    el("rect", { x: x0, y: y + 6, width: Math.max(1.5, x1 - x0), height: rowH - 12, rx: 3, fill: colorOf ? colorOf(r) : "var(--model)" }, s);
+    const right = r.v >= 0;
+    el("text", { x: right ? x1 + 6 : x0 - 6, y: y + 19, "text-anchor": right ? "start" : "end", class: "mono", "font-size": 12 }, g, fmtv(r.v));
+  });
+}
+
+/* ---- render ---- */
+const R = DATA.regions, M = DATA.model;
+const byId = Object.fromEntries(R.map(r => [r.id, r]));
+const nm = id => byId[id] ? label(byId[id]) : id;
+
+yearly(document.getElementById("jumpfig"), byId["Egypt_Nile_Delta"]);
+
+/* region map */
+(function () {
+  const w = 900, h = 400, X = lon => (lon + 180) / 360 * w, Y = lat => (75 - lat) / 135 * h;
+  const s = svg(document.getElementById("mapfig"), w, h, "Seven study regions on a world latitude-longitude frame");
+  const g = el("g", { style: "color:var(--muted)", "font-size": 11 }, s);
+  for (let lon = -180; lon <= 180; lon += 30) el("line", { x1: X(lon), x2: X(lon), y1: 0, y2: h, stroke: "currentColor", "stroke-opacity": .15 }, g);
+  for (let lat = -60; lat <= 60; lat += 30) { el("line", { x1: 0, x2: w, y1: Y(lat), y2: Y(lat), stroke: "currentColor", "stroke-opacity": lat === 0 ? .45 : .15 }, g); el("text", { x: 4, y: Y(lat) - 3, class: "mono" }, g, `${lat}°`); }
+  el("text", { x: w - 4, y: Y(0) - 4, "text-anchor": "end" }, g, "Equator");
+  const off = { Guinea_Kankan_Siguiri: [-14, 2], Portugal_Centro: [-14, -6], Egypt_Nile_Delta: [16, -4], Canada_NWT_South: [24, 0], Australia_NSW: [0, 34], Brazil_North_Pantanal: [16, 2], Indonesia_Central_Kalimantan: [0, -30], Argentina_La_Rioja: [-12, 2] };
+  for (const r of R) {
+    const [la0, la1, lo0, lo1] = r.bbox;
+    el("rect", { x: X(lo0), y: Y(la1), width: Math.max(3, X(lo1) - X(lo0)), height: Math.max(3, Y(la0) - Y(la1)), fill: "var(--fire)", "fill-opacity": .35, stroke: "var(--fire)" }, s);
+    const cx = (X(lo0) + X(lo1)) / 2, cy = (Y(la0) + Y(la1)) / 2, [dx, dy] = off[r.id] || [0, -14];
+    el("text", { x: cx + dx, y: cy + dy, "text-anchor": dx < 0 ? "end" : dx > 0 ? "start" : "middle", "font-size": 12, "font-weight": 600, style: "fill:var(--ink)" }, s, `${r.name}, ${r.country}`);
+    el("text", { x: cx + dx, y: cy + dy + 14, "text-anchor": dx < 0 ? "end" : dx > 0 ? "start" : "middle", "font-size": 11, style: "fill:var(--muted)" }, s, r.fireType.split(" ")[0] === "Agricultural" ? r.fireType.replace("Agricultural ", "Agricultural ").slice(0, 34) : r.fireType);
+  }
+})();
+
+/* region table */
+const ROWS = Object.fromEntries(R.map(r => [r.id, [r.years.reduce((s, y) => s + y[1], 0), r.years.reduce((s, y) => s + (y[2] || 0), 0)]]));
+const EV = { Guinea_Kankan_Siguiri: "Dec–May dry season, every year", Portugal_Centro: "Jun & Oct 2017 wildfires", Canada_NWT_South: "May–Sep 2023 record season", Australia_NSW: "Oct 2019–Feb 2020 Black Summer", Brazil_North_Pantanal: "Jul–Oct 2020 dry-season fires", Indonesia_Central_Kalimantan: "Aug–Oct 2015 El Niño peat fires", Egypt_Nile_Delta: "Sep–Nov straw burning; 2014", Argentina_La_Rioja: "Chilecito fire, July 2026" };
+document.querySelector("#regiontable tbody").innerHTML = R.map(r => `<tr><td><b>${label(r)}</b></td><td>${r.fireType}</td><td>${EV[r.id]}</td><td class="r">${fmt(ROWS[r.id][0])}</td><td class="r">${fmt(ROWS[r.id][1])}</td></tr>`).join("");
+
+/* pipeline notebooks */
+(function () {
+  const g = document.getElementById("nbs");
+  const nb = [["1 · Download", "FIRMS → Parquet"], ["2 · Preprocess", "profile, clean"], ["3 · Baseline", "per detection (v1)"], ["4 · Harmonize", "v2 model, GPU"], ["5 · Export", "JSON for the app"]];
+  nb.forEach(([a, b], i) => {
+    const x = 162 + i * 142;
+    el("rect", { x, y: 80, width: 120, height: 70, rx: 8, fill: "none", stroke: i === 3 ? "var(--model)" : "currentColor", "stroke-width": i === 3 ? 2 : 1.2 }, g);
+    el("text", { x: x + 60, y: 110, "text-anchor": "middle", "font-weight": 600, style: "fill:var(--ink)" }, g, a);
+    el("text", { x: x + 60, y: 130, "text-anchor": "middle", "font-size": 12 }, g, b);
+    if (i < 4) el("line", { x1: x + 120, y1: 115, x2: x + 140, y2: 115, stroke: "currentColor", "stroke-width": 1.5, "marker-end": "url(#ar2)" }, g);
+    el("line", { x1: x + 60, y1: 150, x2: x + 60, y2: 198, stroke: "currentColor", "stroke-dasharray": "2 3" }, g);
+  });
+})();
+
+/* blind spot */
+hbars(document.getElementById("blindfig"), [{ label: "Egypt (whole country)", v: 92 }, { label: "Egypt: Nile Delta", v: 88 }, { label: "Portugal: Centro", v: 25 }],
+  { w: 520, fmtv: v => v + "%", domain: [0, 100], colorOf: () => "var(--fire)", title: "VIIRS detections MODIS never saw" });
+
+/* split */
+(function () {
+  const w = 900, h = 150, X = y => 20 + (y - 2000) / 26 * (w - 40);
+  const s = svg(document.getElementById("splitfig"), w, h, "Year split: 2000–2012 filled by the model, 2013–2020 train, 2021 validation, 2022–2025 test");
+  const sets = [[2000, 2013, "Backfilled by the model", "no VIIRS target", "var(--line)", "var(--muted)"], [2013, 2021, "Train 2013–2020", "VIIRS target + MODIS features", "var(--model)", "#fff"], [2021, 2022, "Val.", "2021", "var(--modis)", "#fff"], [2022, 2026, "Test 2022–25", "scored once", "var(--fire)", "#fff"]];
+  for (const [a, b, t1, t2, c, tc] of sets) {
+    el("rect", { x: X(a) + 1, y: 30, width: X(b) - X(a) - 2, height: 56, rx: 6, fill: c }, s);
+    el("text", { x: (X(a) + X(b)) / 2, y: 54, "text-anchor": "middle", "font-size": 13, "font-weight": 600, style: `fill:${tc}` }, s, t1);
+    if (b - a > 2) el("text", { x: (X(a) + X(b)) / 2, y: 73, "text-anchor": "middle", "font-size": 11, style: `fill:${tc}` }, s, t2);
+  }
+  const g = el("g", { style: "color:var(--muted)", "font-size": 11 }, s);
+  for (const y of [2000, 2005, 2010, 2013, 2021, 2022, 2026]) el("text", { x: X(y), y: 104, "text-anchor": "middle", class: "mono" }, g, y === 2026 ? "2025" : y);
+  
+  el("text", { x: X(2000), y: 18, "font-size": 12 }, g, "Nov 2000 – Dec 2025 · 8 regions · 10 × 10 km cells × months");
+})();
+
+/* scores */
+(function () {
+  const short = m => m.startsWith("Average") ? "A · Average ratio" : m.startsWith("Gradient") ? "B · Plain boosting" : "C · Ratio × correction (main)";
+  const rows = [];
+  for (const [set, list] of [["2021", M.validation], ["2022–24", M.test_overall]]) for (const r of list) rows.push({ set, ...r });
+  document.querySelector("#scoretable tbody").innerHTML = rows.map(r => `<tr class="${r.model.includes("main") ? "main" : ""}"><td>${short(r.model)}</td><td class="r">${r.set}</td><td class="r">${r.poisson_deviance_cell.toFixed(2)}</td><td class="r">${sgn(r.total_bias)}</td><td class="r">${r.monthly_wape.toFixed(1)}%</td><td class="r">${r.monthly_corr.toFixed(3)}</td></tr>`).join("");
+  const host = document.getElementById("scorefig");
+  const w = 520, h = 250, s = svg(host, w, h, "Test-year cell deviance and monthly error for the three models");
+  const t = M.test_overall, cols = ["var(--modis)", "var(--muted)", "var(--model)"];
+  const panel = (x0, title, key, max, f) => {
+    el("text", { x: x0, y: 16, "font-size": 13, "font-weight": 600, style: "fill:var(--ink)" }, s, title);
+    t.forEach((r, i) => {
+      const bh = (r[key] / max) * 170, x = x0 + i * 72;
+      el("rect", { x, y: 210 - bh, width: 56, height: bh, rx: 3, fill: cols[i] }, s);
+      el("text", { x: x + 28, y: 204 - bh, "text-anchor": "middle", "font-size": 12, class: "mono" }, s, f(r[key]));
+      el("text", { x: x + 28, y: 228, "text-anchor": "middle", "font-size": 12, style: "fill:var(--muted)" }, s, "ABC"[i]);
+    });
+    el("line", { x1: x0 - 4, x2: x0 + 212, y1: 210, y2: 210, stroke: "currentColor", style: "color:var(--line)" }, s);
+  };
+  panel(10, "Cell deviance (lower is better)", "poisson_deviance_cell", 7, v => v.toFixed(2));
+  panel(275, "Monthly WAPE (%)", "monthly_wape", 15, v => v.toFixed(1) + "%");
+})();
+
+/* per region test */
+(function () {
+  const host = document.getElementById("regionfig");
+  const tb = M.test_by_region.slice().sort((a, b) => a.monthly_wape - b.monthly_wape);
+  const w = 960, rowH = 30, h = 40 + tb.length * rowH, s = svg(host, w, h, "Test-year total bias and monthly error per region");
+  const L = 250, bx = v => L + 150 + v / 20 * 140, wx = v => 620 + v / 40 * 300;
+  el("text", { x: L + 150, y: 16, "text-anchor": "middle", "font-size": 13, "font-weight": 600, style: "fill:var(--ink)" }, s, "Total bias");
+  el("text", { x: 620, y: 16, "font-size": 13, "font-weight": 600, style: "fill:var(--ink)" }, s, "Monthly error (WAPE)");
+  el("line", { x1: bx(0), x2: bx(0), y1: 26, y2: h, stroke: "currentColor", style: "color:var(--muted)" }, s);
+  tb.forEach((r, i) => {
+    const y = 30 + i * rowH;
+    el("text", { x: L - 10, y: y + 19, "text-anchor": "end", "font-size": 13 }, s, nm(r.area));
+    const x0 = Math.min(bx(0), bx(r.total_bias)), x1 = Math.max(bx(0), bx(r.total_bias));
+    el("rect", { x: x0, y: y + 7, width: x1 - x0, height: 16, rx: 3, fill: r.total_bias > 0 ? "var(--bad)" : "var(--good)", "fill-opacity": .8 }, s);
+    el("text", { x: r.total_bias > 0 ? x1 + 5 : x0 - 5, y: y + 19, "text-anchor": r.total_bias > 0 ? "start" : "end", "font-size": 12, class: "mono", style: "fill:var(--muted)" }, s, sgn(r.total_bias));
+    el("rect", { x: 620, y: y + 7, width: wx(r.monthly_wape) - 620, height: 16, rx: 3, fill: "var(--model)" }, s);
+    el("text", { x: wx(r.monthly_wape) + 5, y: y + 19, "font-size": 12, class: "mono", style: "fill:var(--muted)" }, s, r.monthly_wape.toFixed(1) + "%");
+  });
+})();
+
+/* jump check dot plot */
+(function () {
+  const j = M.jump_check, w = 960, rowH = 34, L = 250, h = 40 + j.length * rowH;
+  const s = svg(document.getElementById("jumpcheck"), w, h, "2012 jump check per region: raw join, real change and harmonized on a log scale");
+  const lo = 0.3, hi = 300, X = v => L + (Math.log10(v) - Math.log10(lo)) / (Math.log10(hi) - Math.log10(lo)) * (w - L - 250);
+  const g = el("g", { style: "color:var(--muted)", "font-size": 11 }, s);
+  for (const t of [0.3, 1, 3, 10, 30, 100, 300]) { el("line", { x1: X(t), x2: X(t), y1: 22, y2: h - 6, stroke: "currentColor", "stroke-opacity": t === 1 ? .6 : .15 }, g); el("text", { x: X(t), y: 14, "text-anchor": "middle", class: "mono" }, g, t + "×"); }
+  j.forEach((r, i) => {
+    const y = 34 + i * rowH;
+    el("text", { x: L - 12, y: y + 4, "text-anchor": "end", "font-size": 13, style: "fill:var(--ink)" }, s, nm(r.area));
+    el("line", { x1: X(Math.min(r.real_change, r.harmonized_jump)), x2: X(r.raw_jump), y1: y, y2: y, stroke: "currentColor", style: "color:var(--line)", "stroke-width": 2 }, s);
+    el("circle", { cx: X(r.raw_jump), cy: y, r: 6, fill: "var(--modis)" }, s);
+    el("circle", { cx: X(r.real_change), cy: y, r: 8, fill: "none", stroke: "var(--muted)", "stroke-width": 2 }, s);
+    el("circle", { cx: X(r.harmonized_jump), cy: y, r: 5, fill: "var(--model)" }, s);
+    el("text", { x: w - 8, y: y + 4, "text-anchor": "end", "font-size": 12, class: "mono", style: "fill:var(--muted)" }, s, `${r.raw_jump.toFixed(2)}× → ${r.harmonized_jump.toFixed(2)}× (real ${r.real_change.toFixed(2)}×)`);
+  });
+})();
+
+/* LORO */
+(function () {
+  const ids = [...new Set(M.leave_one_region_out.map(r => r.held_out))];
+  const rows = ids.map(id => ({ label: nm(id), v: M.leave_one_region_out.find(r => r.held_out === id && r.model.includes("correction")).total_bias })).sort((a, b) => a.v - b.v);
+  hbars(document.getElementById("lorofig"), rows, { domain: [-80, 95], colorOf: r => Math.abs(r.v) > 25 ? "var(--bad)" : "var(--model)", title: "Total bias on the held-out region (main model)" });
+})();
+
+/* anomalies */
+(function () {
+  const verdict = { Australia_NSW: ["Nov 2019 (z 27.4), Dec 2019 (18.7)", "Found"], Brazil_North_Pantanal: ["Jul 2020 (z 11.8), Aug & Sep 2020 (7.8, 7.6)", "Found"], Canada_NWT_South: ["May 2023 (z 14.2), Sep 2023 (12.1)", "Found"], Portugal_Centro: ["Jun 2017 (z 26.0), Oct 2017 (20.8)", "Found"], Indonesia_Central_Kalimantan: ["Oct 2015 (z 3.3), among the top months", "Found · weaker, other El Niño years are also high"], Egypt_Nile_Delta: ["No single spike", "As expected: a steady season"], Guinea_Kankan_Siguiri: ["No single spike", "As expected: a steady season"], Argentina_La_Rioja: ["Event is in 2026", "Pending: 2026 data is being added"] };
+  document.querySelector("#anomtable tbody").innerHTML = R.map(r => `<tr><td>${label(r)}</td><td>${EV[r.id]}</td><td>${verdict[r.id][0]}</td><td>${verdict[r.id][1].startsWith("Found") ? '<b class="neg">Found</b>' + verdict[r.id][1].slice(5) : verdict[r.id][1].startsWith("Missed") ? `<b class="pos">Missed</b> · ${verdict[r.id][1].slice(8)}` : verdict[r.id][1]}</td></tr>`).join("");
+})();
+
+/* explore */
+(function () {
+  const tabs = document.getElementById("regtabs");
+  const show = id => {
+    const r = byId[id];
+    [...tabs.children].forEach(b => b.setAttribute("aria-pressed", String(b.dataset.id === id)));
+    yearly(document.getElementById("exyear"), r, 640, 360);
+    calendar(document.getElementById("excal"), r);
+    document.getElementById("excap1").textContent = `${label(r)}: yearly detections, log scale. Shaded: the 10–90% ensemble band.`;
+    document.getElementById("excap2").textContent = `Monthly calendar 2001–2025 (log colour). Above the dashed line: model estimate; below: real VIIRS. White outline: ${EV[r.id]}.`;
+    const j = M.jump_check.find(x => x.area === id), t = M.test_by_region.find(x => x.area === id), lo = M.leave_one_region_out.find(x => x.held_out === id && x.model.includes("correction"));
+    const best = r.years.slice().sort((a, b) => b[6] - a[6])[0];
+    document.getElementById("extiles").innerHTML = [
+      [`${j.raw_jump.toFixed(2)}× → ${j.harmonized_jump.toFixed(2)}×`, `2012 jump, raw → harmonized (real ${j.real_change.toFixed(2)}×)`],
+      [`${sgn(t.total_bias)}`, `test-year total bias · monthly error ${t.monthly_wape.toFixed(1)}%`],
+      [`${best[0]}`, `busiest year: ${fmt(best[6])} detections`],
+      [`${sgn(lo.total_bias)}`, "bias when this region is never seen in training"]
+    ].map(([a, b]) => `<div class="tile"><b>${a}</b><span>${b}</span></div>`).join("");
+  };
+  for (const r of R) {
+    const b = document.createElement("button"); b.type = "button"; b.dataset.id = r.id; b.textContent = label(r);
+    b.addEventListener("click", () => show(r.id)); tabs.appendChild(b);
+  }
+  show("Portugal_Centro");
+})();
+</script>
+</body>
+</html>
