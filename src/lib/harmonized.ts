@@ -80,7 +80,7 @@ export interface ModelReport {
   grid_km: number;
   years: [number, number];
   viirs_from: number;
-  split: { train_until: number; val_years: number[]; test_from: number };
+  split: { train_until: number; val_years: number[]; test_from: number; /** Last scored year (later months are shown, not scored). */ test_until?: number };
   features: string[];
   model: string;
   members: number;
@@ -558,7 +558,7 @@ export interface Coverage {
   trainUntil: number | null;
   valYears: number[];
   testFrom: number | null;
-  /** Last year in the test period = the last year with data. */
+  /** Last year in the test period: the report's test_until, else the last year with data. */
   testTo: number;
 }
 
@@ -584,7 +584,7 @@ export function coverageOf(cals: RegionCalendar[], report: ModelReport | null): 
     trainUntil: report?.split.train_until ?? null,
     valYears: report?.split.val_years ?? [],
     testFrom: report?.split.test_from ?? null,
-    testTo: Number(lastMonth.slice(0, 4)),
+    testTo: report?.split.test_until ?? Number(lastMonth.slice(0, 4)),
   };
 }
 
